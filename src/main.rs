@@ -60,7 +60,7 @@ fn main() -> eframe::Result {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([1040.0, 720.0])
             .with_min_inner_size([750.0, 500.0])
-            .with_title(format!("ActLog v{} - Focus & Activity Dashboard", env!("CARGO_PKG_VERSION"))),
+            .with_title("ActLog - Focus & Activity Dashboard"),
         ..Default::default()
     };
 
