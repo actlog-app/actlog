@@ -10,8 +10,8 @@ fn test_schema_creation() {
 
     let tags = Repository::get_all_tags(&conn).expect("get tags");
     assert!(!tags.is_empty(), "default tags should be seeded");
-    assert!(tags.iter().any(|t| t.name == "Development"));
-    assert!(tags.iter().any(|t| t.name == "Gaming"));
+    assert!(tags.iter().any(|t| t.name == "work"));
+    assert!(tags.iter().any(|t| t.name == "games"));
 
     let rules = Repository::get_all_rules(&conn).expect("get rules");
     assert!(!rules.is_empty(), "default rules should be seeded");
