@@ -6,16 +6,27 @@ use crate::tracker::rules::RuleEngine;
 use crate::tracker::window::get_foreground_window;
 use chrono::Utc;
 use rusqlite::Connection;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU16, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
-#[derive(Default)]
 pub struct SharedTrackerState {
     pub current_browser_tab: Mutex<Option<BrowserHeartbeat>>,
     pub current_activity: Mutex<Option<ActivitySession>>,
     pub is_tracking_paused: AtomicBool,
+    pub bound_port: AtomicU16,
+}
+
+impl Default for SharedTrackerState {
+    fn default() -> Self {
+        Self {
+            current_browser_tab: Mutex::new(None),
+            current_activity: Mutex::new(None),
+            is_tracking_paused: AtomicBool::new(false),
+            bound_port: AtomicU16::new(5577),
+        }
+    }
 }
 
 pub struct TrackerEngine {

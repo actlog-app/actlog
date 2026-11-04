@@ -8,7 +8,7 @@
     "activeTab"
   ],
   "host_permissions": [
-    "http://127.0.0.1:5566/*"
+    "http://127.0.0.1:*"
   ],
   "background": {
     "service_worker": "background.js"

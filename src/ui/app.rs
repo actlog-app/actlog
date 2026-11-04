@@ -89,11 +89,12 @@ impl eframe::App for ActLogApp {
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new("Local API: http://127.0.0.1:5566").size(11.0).color(Color32::from_rgb(120, 120, 120)));
+                    let port = self.state.bound_port.load(Ordering::Relaxed);
+                    ui.label(RichText::new(format!("Local API: http://127.0.0.1:{}", port)).size(11.0).color(Color32::from_rgb(120, 120, 120)));
 
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if ui.button("🌐 Open Web View").clicked() {
-                            ui.ctx().open_url(egui::OpenUrl::new_tab("http://127.0.0.1:5566/dashboard"));
+                            ui.ctx().open_url(egui::OpenUrl::new_tab(format!("http://127.0.0.1:{}/dashboard", port)));
                         }
 
                         let paused = self.state.is_tracking_paused.load(Ordering::Relaxed);

@@ -22,8 +22,8 @@ fn main() -> eframe::Result {
     let tracker = TrackerEngine::new(state.clone(), db_path.clone());
     let _tracker_handle = tracker.start_loop();
 
-    // 4. Start Local Ingestion & Integration HTTP Server (127.0.0.1:5566)
-    let server = HttpServer::new(state.clone(), db_path.clone(), 5566);
+    // 4. Start Local Ingestion & Integration HTTP Server (default: 5577)
+    let server = HttpServer::new(state.clone(), db_path.clone(), 5577);
     let _server_handle = server.start();
 
     // 5. Mount Desktop Window UI

@@ -27,7 +27,7 @@ async function sendHeartbeat() {
 
     lastSentUrl = activeTab.url;
 
-    await fetch('http://127.0.0.1:5566/api/heartbeat/browser', {
+    await fetch('http://127.0.0.1:5577/api/heartbeat/browser', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)

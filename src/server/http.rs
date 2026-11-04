@@ -19,12 +19,36 @@ impl HttpServer {
         }
     }
 
-    pub fn start(self) -> thread::JoinHandle<()> {
-        let addr = format!("127.0.0.1:{}", self.port);
-        let server = Server::http(&addr).expect("Failed to bind local HTTP server");
+    pub fn start(self) -> Option<thread::JoinHandle<()>> {
+        let mut server = None;
+        let mut active_port = self.port;
+
+        for p in self.port..(self.port + 10) {
+            let addr = format!("127.0.0.1:{}", p);
+            match Server::http(&addr) {
+                Ok(s) => {
+                    active_port = p;
+                    server = Some(s);
+                    break;
+                }
+                Err(e) => {
+                    eprintln!("Port {} unavailable: {}. Trying next...", p, e);
+                }
+            }
+        }
+
+        let server = match server {
+            Some(s) => s,
+            None => {
+                eprintln!("Warning: Could not bind any HTTP server port in range {}..{}. External integrations disabled.", self.port, self.port + 10);
+                return None;
+            }
+        };
+
+        self.state.bound_port.store(active_port, std::sync::atomic::Ordering::Relaxed);
         let handler = ApiHandler::new(self.state, self.db_path);
 
-        thread::spawn(move || {
+        Some(thread::spawn(move || {
             for mut request in server.incoming_requests() {
                 let url_str = request.url().to_string();
                 let mut parts = url_str.splitn(2, '?');
@@ -62,6 +86,6 @@ impl HttpServer {
 
                 let _ = request.respond(response);
             }
-        })
+        }))
     }
 }

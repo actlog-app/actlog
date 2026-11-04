@@ -4,7 +4,7 @@ async function loadStats() {
   const curInfo = document.getElementById('cur-info');
 
   try {
-    const res = await fetch('http://127.0.0.1:5566/api/stats/summary');
+    const res = await fetch('http://127.0.0.1:5577/api/stats/summary');
     if (!res.ok) throw new Error('Daemon unreachable');
     const data = await res.json();
 
