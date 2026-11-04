@@ -47,12 +47,12 @@ fn main() -> eframe::Result {
     // let server = HttpServer::new(state.clone(), db_path.clone(), 5577);
     // let _server_handle = server.start();
 
-    // 5. Mount Desktop Window UI (1:1 Procrastitracker "Statistics View")
+    // 5. Mount Desktop Window UI (Modern Focus Dashboard)
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([880.0, 620.0])
-            .with_min_inner_size([650.0, 450.0])
-            .with_title("Statistics View"),
+            .with_inner_size([1040.0, 720.0])
+            .with_min_inner_size([750.0, 500.0])
+            .with_title("ActLog - Focus & Activity Dashboard"),
         ..Default::default()
     };
 
