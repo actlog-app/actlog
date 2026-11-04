@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      width: 280px;
+      margin: 0;
+      padding: 12px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #181A20;
+      color: #E0E0E0;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid #2C2F36;
+      padding-bottom: 8px;
+      margin-bottom: 10px;
+    }
+    .title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #FFF;
+    }
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #4CAF50;
+      display: inline-block;
+    }
+    .stat-card {
+      background: #22252D;
+      border-radius: 6px;
+      padding: 10px;
+      margin-bottom: 8px;
+    }
+    .stat-val {
+      font-size: 20px;
+      font-weight: bold;
+      color: #4CAF50;
+    }
+    .stat-lbl {
+      font-size: 11px;
+      color: #888;
+      text-transform: uppercase;
+    }
+    .btn {
+      display: block;
+      width: 100%;
+      text-align: center;
+      background: #2196F3;
+      color: #FFF;
+      text-decoration: none;
+      padding: 7px 0;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-top: 8px;
+    }
+    .btn:hover {
+      background: #1976D2;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="title">ActLog Companion</div>
+    <span id="dot" class="status-dot"></span>
+  </div>
+
+  <div class="stat-card">
+    <div id="active-time" class="stat-val">--</div>
+    <div class="stat-lbl">Active Today</div>
+  </div>
+
+  <div id="cur-info" style="font-size: 11px; color: #AAA; line-height: 1.4; margin-bottom: 8px;">
+    Monitoring active tab...
+  </div>
+
+  <a class="btn" href="http://127.0.0.1:5566/dashboard" target="_blank">Open Full Dashboard</a>
+
+  <script src="popup.js"></script>
+</body>
+</html>
+

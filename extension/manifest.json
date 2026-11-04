@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "ActLog Companion",
+  "version": "1.0.0",
+  "description": "Sends active tab domain and URL to local ActLog desktop application.",
+  "permissions": [
+    "tabs",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1:5566/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "ActLog Tracker"
+  }
+}
+
