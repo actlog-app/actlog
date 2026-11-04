@@ -6,7 +6,7 @@ use crate::ui::views::apps::render_apps_and_categories;
 use crate::ui::views::header::{render_header, QuickRange};
 use crate::ui::views::metrics::render_headline_metrics;
 use crate::ui::views::ribbon::render_day_ribbon;
-use chrono::{Duration, Local, NaiveDate, TimeZone};
+use chrono::{Local, NaiveDate, TimeZone};
 use eframe::egui;
 use rusqlite::Connection;
 use std::collections::HashSet;
@@ -72,43 +72,15 @@ impl ActLogApp {
     }
 
     fn calculate_timestamps(&self) -> (i64, i64) {
-        match self.quick_range {
-            QuickRange::Today | QuickRange::Yesterday => {
-                let s = Local
-                    .from_local_datetime(&self.selected_date.and_hms_opt(0, 0, 0).unwrap())
-                    .unwrap()
-                    .timestamp();
-                let e = Local
-                    .from_local_datetime(&self.selected_date.and_hms_opt(23, 59, 59).unwrap())
-                    .unwrap()
-                    .timestamp();
-                (s, e)
-            }
-            QuickRange::SevenDays => {
-                let start_date = self.selected_date - Duration::days(6);
-                let s = Local
-                    .from_local_datetime(&start_date.and_hms_opt(0, 0, 0).unwrap())
-                    .unwrap()
-                    .timestamp();
-                let e = Local
-                    .from_local_datetime(&self.selected_date.and_hms_opt(23, 59, 59).unwrap())
-                    .unwrap()
-                    .timestamp();
-                (s, e)
-            }
-            QuickRange::ThirtyDays => {
-                let start_date = self.selected_date - Duration::days(29);
-                let s = Local
-                    .from_local_datetime(&start_date.and_hms_opt(0, 0, 0).unwrap())
-                    .unwrap()
-                    .timestamp();
-                let e = Local
-                    .from_local_datetime(&self.selected_date.and_hms_opt(23, 59, 59).unwrap())
-                    .unwrap()
-                    .timestamp();
-                (s, e)
-            }
-        }
+        let s = Local
+            .from_local_datetime(&self.selected_date.and_hms_opt(0, 0, 0).unwrap())
+            .unwrap()
+            .timestamp();
+        let e = Local
+            .from_local_datetime(&self.selected_date.and_hms_opt(23, 59, 59).unwrap())
+            .unwrap()
+            .timestamp();
+        (s, e)
     }
 }
 
@@ -142,8 +114,8 @@ impl eframe::App for ActLogApp {
 
             ui.add_space(10.0);
 
-            // Layer 2: Headline Metrics (Focus Score + Active Time + Away Time)
-            render_headline_metrics(ui, self.summary.as_ref(), &self.tags);
+            // Layer 2: Headline Metrics (Active Time + Away Time)
+            render_headline_metrics(ui, self.summary.as_ref());
 
             ui.add_space(10.0);
 

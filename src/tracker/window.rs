@@ -60,8 +60,10 @@ pub mod win32 {
             // Resolve process path (handles UWP ApplicationFrameHost wrapper)
             let (app_name, exe_path) = resolve_process_info(hwnd, pid);
 
-            // Filter out lock screen
-            if app_name.eq_ignore_ascii_case("lockapp.exe") {
+            // Filter out lock screen and own process
+            if app_name.eq_ignore_ascii_case("lockapp.exe")
+                || app_name.eq_ignore_ascii_case("actlog.exe")
+            {
                 return None;
             }
 

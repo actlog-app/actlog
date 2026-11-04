@@ -12,134 +12,157 @@ pub fn render_apps_and_categories(
     selected_category: &mut Option<String>,
     search_query: &mut String,
     expanded_apps: &mut HashSet<String>,
-    on_tag_assigned: &mut Option<(String, i64)>, // (app_name, new_tag_id)
+    on_tag_assigned: &mut Option<(String, i64)>,
 ) {
     let theme = Theme::DARK;
     let total_active_sec: i64 = activities
         .iter()
-        .filter(|a| !a.is_afk)
+        .filter(|a| !a.is_afk && !a.app_name.eq_ignore_ascii_case("actlog.exe"))
         .map(|a| a.duration)
         .sum();
 
-    ui.columns(2, |cols| {
-        // Left Column: Categories (fixed width allocation)
-        cols[0].set_max_width(220.0);
-        cols[0].vertical(|ui| {
-            let frame = egui::Frame::group(ui.style())
-                .fill(theme.surface)
-                .rounding(Rounding::same(8.0))
-                .stroke(Stroke::new(1.0, theme.border))
-                .inner_margin(egui::Margin::symmetric(12.0, 10.0));
+    let full_remaining_height = ui.available_height().max(200.0);
+    let category_width = 210.0;
 
-            frame.show(ui, |ui| {
-                ui.label(RichText::new("CATEGORIES").size(10.5).strong().color(theme.text_dim));
-                ui.add_space(6.0);
+    ui.horizontal(|ui| {
+        // Left Column: Categories (Fixed 210px, Full Height)
+        ui.allocate_ui_with_layout(
+            Vec2::new(category_width, full_remaining_height),
+            egui::Layout::top_down(egui::Align::LEFT),
+            |ui| {
+                let frame = egui::Frame::group(ui.style())
+                    .fill(theme.surface)
+                    .rounding(Rounding::same(8.0))
+                    .stroke(Stroke::new(1.0, theme.border))
+                    .inner_margin(egui::Margin::symmetric(12.0, 10.0));
 
-                // "All Categories" row
-                let is_all_sel = selected_category.is_none();
-                let all_btn = ui.selectable_label(
-                    is_all_sel,
-                    RichText::new("All Categories").size(12.0).strong(),
-                );
-                if all_btn.clicked() {
-                    *selected_category = None;
-                }
+                frame.show(ui, |ui| {
+                    ui.set_min_height(full_remaining_height - 20.0);
+                    ui.set_width(category_width - 24.0);
 
-                ui.separator();
+                    ui.label(RichText::new("CATEGORIES").size(10.5).strong().color(theme.text_dim));
+                    ui.add_space(6.0);
 
-                // Compute category sums
-                let mut cat_sums: BTreeMap<String, (i64, String)> = BTreeMap::new();
-                for act in activities {
-                    if act.is_afk {
-                        continue;
+                    // "All Categories" toggle
+                    let is_all_sel = selected_category.is_none();
+                    let all_btn = ui.selectable_label(
+                        is_all_sel,
+                        RichText::new("All Categories").size(12.0).strong(),
+                    );
+                    if all_btn.clicked() {
+                        *selected_category = None;
                     }
-                    let (cat_name, cat_color) = resolve_tag_info(act.tag_id, tags);
-                    let entry = cat_sums.entry(cat_name).or_insert((0, cat_color));
-                    entry.0 += act.duration;
-                }
 
-                ScrollArea::vertical()
-                    .id_salt("modern_categories_scroll")
-                    .show(ui, |ui| {
-                        for (cat_name, (secs, color_hex)) in cat_sums {
-                            let is_sel = selected_category.as_deref() == Some(&cat_name);
-                            let color = parse_hex_color(&color_hex);
-                            let ratio = (secs as f32 / total_active_sec.max(1) as f32) * 100.0;
+                    ui.separator();
 
-                            ui.horizontal(|ui| {
-                                let (chip, _) = ui.allocate_exact_size(Vec2::new(8.0, 8.0), egui::Sense::hover());
-                                ui.painter().circle_filled(chip.center(), 4.0, color);
+                    // Compute category sums
+                    let mut cat_sums: BTreeMap<String, (i64, String)> = BTreeMap::new();
+                    for act in activities {
+                        if act.is_afk || act.app_name.eq_ignore_ascii_case("actlog.exe") {
+                            continue;
+                        }
+                        let (cat_name, cat_color) = resolve_tag_info(act.tag_id, tags);
+                        let entry = cat_sums.entry(cat_name).or_insert((0, cat_color));
+                        entry.0 += act.duration;
+                    }
 
-                                let label = RichText::new(&cat_name).size(12.0);
-                                if ui.selectable_label(is_sel, label).clicked() {
-                                    *selected_category = if is_sel { None } else { Some(cat_name.clone()) };
-                                }
+                    ScrollArea::vertical()
+                        .id_salt("categories_vertical_scroll")
+                        .auto_shrink([false, false])
+                        .show(ui, |ui| {
+                            for (cat_name, (secs, color_hex)) in cat_sums {
+                                let is_sel = selected_category.as_deref() == Some(&cat_name);
+                                let color = parse_hex_color(&color_hex);
+                                let ratio = (secs as f32 / total_active_sec.max(1) as f32) * 100.0;
 
-                                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                    ui.label(
-                                        RichText::new(format!("{:.0}%", ratio))
-                                            .size(11.0)
-                                            .monospace()
-                                            .color(theme.text_dim),
-                                    );
+                                ui.horizontal(|ui| {
+                                    let (chip, _) = ui.allocate_exact_size(Vec2::new(8.0, 8.0), egui::Sense::hover());
+                                    ui.painter().circle_filled(chip.center(), 4.0, color);
+
+                                    let label = RichText::new(&cat_name).size(12.0);
+                                    if ui.selectable_label(is_sel, label).clicked() {
+                                        *selected_category = if is_sel { None } else { Some(cat_name.clone()) };
+                                    }
+
+                                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                        ui.label(
+                                            RichText::new(format!("{:.0}%", ratio))
+                                                .size(11.0)
+                                                .monospace()
+                                                .color(theme.text_dim),
+                                        );
+                                    });
                                 });
-                            });
-                        }
-                    });
-            });
-        });
-
-        // Right Column: Applications & Drill-down
-        cols[1].vertical(|ui| {
-            let frame = egui::Frame::group(ui.style())
-                .fill(theme.surface)
-                .rounding(Rounding::same(8.0))
-                .stroke(Stroke::new(1.0, theme.border))
-                .inner_margin(egui::Margin::symmetric(14.0, 10.0));
-
-            frame.show(ui, |ui| {
-                // Header + Search bar
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new("APPLICATIONS & TASKS").size(10.5).strong().color(theme.text_dim));
-
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        let search = egui::TextEdit::singleline(search_query)
-                            .hint_text("🔍 Search apps, tabs, documents...")
-                            .desired_width(220.0);
-                        ui.add(search);
-                    });
-                });
-
-                ui.add_space(8.0);
-                ui.separator();
-                ui.add_space(4.0);
-
-                // Group activities into App -> Window Titles
-                let app_groups = build_app_groups(activities, tags, selected_category.as_deref(), search_query);
-
-                ScrollArea::vertical()
-                    .id_salt("modern_apps_scroll")
-                    .show(ui, |ui| {
-                        if app_groups.is_empty() {
-                            ui.add_space(20.0);
-                            ui.vertical_centered(|ui| {
-                                ui.label(RichText::new("No activities match search or selected category.").color(theme.text_dim).size(12.5));
-                            });
-                        } else {
-                            for app in app_groups {
-                                render_app_row(
-                                    ui,
-                                    &app,
-                                    tags,
-                                    total_active_sec,
-                                    expanded_apps,
-                                    on_tag_assigned,
-                                );
                             }
-                        }
+                        });
+                });
+            },
+        );
+
+        ui.add_space(6.0);
+
+        // Right Column: Applications & Tasks (Takes ALL remaining width & height!)
+        let right_avail_width = ui.available_width().max(300.0);
+
+        ui.allocate_ui_with_layout(
+            Vec2::new(right_avail_width, full_remaining_height),
+            egui::Layout::top_down(egui::Align::LEFT),
+            |ui| {
+                let frame = egui::Frame::group(ui.style())
+                    .fill(theme.surface)
+                    .rounding(Rounding::same(8.0))
+                    .stroke(Stroke::new(1.0, theme.border))
+                    .inner_margin(egui::Margin::symmetric(14.0, 10.0));
+
+                frame.show(ui, |ui| {
+                    ui.set_min_height(full_remaining_height - 20.0);
+                    ui.set_width(right_avail_width - 28.0);
+
+                    // Header + Responsive Search Box
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new("APPLICATIONS & TASKS").size(10.5).strong().color(theme.text_dim));
+
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            let search_width = (ui.available_width() * 0.45).clamp(140.0, 240.0);
+                            let search = egui::TextEdit::singleline(search_query)
+                                .hint_text("🔍 Search...")
+                                .desired_width(search_width);
+                            ui.add(search);
+                        });
                     });
-            });
-        });
+
+                    ui.add_space(6.0);
+                    ui.separator();
+                    ui.add_space(4.0);
+
+                    // Group activities into App -> Window Titles (filtered out actlog.exe)
+                    let app_groups = build_app_groups(activities, tags, selected_category.as_deref(), search_query);
+
+                    ScrollArea::vertical()
+                        .id_salt("apps_full_height_scroll")
+                        .auto_shrink([false, false])
+                        .show(ui, |ui| {
+                            if app_groups.is_empty() {
+                                ui.add_space(30.0);
+                                ui.vertical_centered(|ui| {
+                                    ui.label(RichText::new("No activities match search or selected category.").color(theme.text_dim).size(12.5));
+                                });
+                            } else {
+                                for app in app_groups {
+                                    render_app_row(
+                                        ui,
+                                        &app,
+                                        tags,
+                                        total_active_sec,
+                                        expanded_apps,
+                                        on_tag_assigned,
+                                    );
+                                }
+                            }
+                        });
+                });
+            },
+        );
     });
 }
 
@@ -147,7 +170,7 @@ struct AppGroup {
     name: String,
     total_seconds: i64,
     tag_id: Option<i64>,
-    sub_items: Vec<(String, i64, Option<i64>)>, // title, duration, tag_id
+    sub_items: Vec<(String, i64, Option<i64>)>,
 }
 
 fn build_app_groups(
@@ -160,7 +183,7 @@ fn build_app_groups(
     let search_lower = search.to_lowercase();
 
     for act in activities {
-        if act.is_afk {
+        if act.is_afk || act.app_name.eq_ignore_ascii_case("actlog.exe") {
             continue;
         }
 
@@ -231,7 +254,7 @@ fn render_app_row(
     let tag_color = parse_hex_color(&color_hex);
 
     ui.horizontal(|ui| {
-        // Expand/collapse chevron button
+        // Expand/collapse chevron
         let chevron = if is_expanded { "▾" } else { "▸" };
         if ui.button(RichText::new(chevron).size(13.0).color(theme.text_muted)).clicked() {
             if is_expanded {
@@ -241,11 +264,11 @@ fn render_app_row(
             }
         }
 
-        // Color dot
+        // Color indicator dot
         let (dot, _) = ui.allocate_exact_size(Vec2::new(8.0, 8.0), egui::Sense::hover());
         ui.painter().circle_filled(dot.center(), 4.0, tag_color);
 
-        // App name (clickable to toggle expansion)
+        // App Name (Clickable)
         let name_btn = ui.add(
             egui::Button::new(RichText::new(&app.name).size(13.0).strong().color(theme.text_primary))
                 .frame(false),
@@ -258,12 +281,11 @@ fn render_app_row(
             }
         }
 
-        // Sub-item count indicator
         if !app.sub_items.is_empty() {
             ui.label(RichText::new(format!("({} tasks)", app.sub_items.len())).size(11.0).color(theme.text_dim));
         }
 
-        // Right side: Progress Bar & Duration
+        // Right side: Percentage, Duration, and Progress Bar
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             let dur_str = format_pt_time(app.total_seconds);
             let pct_str = format!("{:>5.1}%", ratio * 100.0);
@@ -271,8 +293,8 @@ fn render_app_row(
 
             ui.add_space(8.0);
 
-            // Progress bar
-            let bar_w = 120.0;
+            // Responsive bar width
+            let bar_w = 90.0;
             let (bar_rect, _) = ui.allocate_exact_size(Vec2::new(bar_w, 6.0), egui::Sense::hover());
             ui.painter().rect_filled(bar_rect, Rounding::same(3.0), Color32::from_rgb(32, 36, 45));
 
@@ -282,7 +304,7 @@ fn render_app_row(
         });
     });
 
-    // Expanded drill-down sub-items
+    // Sub-items drill down
     if is_expanded {
         for (sub_title, sub_secs, _) in &app.sub_items {
             let sub_ratio = (*sub_secs as f32 / app.total_seconds.max(1) as f32).clamp(0.0, 1.0);
@@ -290,7 +312,7 @@ fn render_app_row(
             ui.horizontal(|ui| {
                 ui.add_space(28.0);
                 ui.label(RichText::new("•").size(10.0).color(theme.text_dim));
-                ui.label(RichText::new(truncate_sub(sub_title, 60)).size(11.5).color(theme.text_muted));
+                ui.label(RichText::new(truncate_sub(sub_title, 55)).size(11.5).color(theme.text_muted));
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     let sub_dur = format_pt_time(*sub_secs);

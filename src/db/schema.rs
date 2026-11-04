@@ -41,6 +41,7 @@ pub fn init_database(conn: &Connection) -> Result<()> {
          CREATE INDEX IF NOT EXISTS idx_activities_time ON activities(start_time, end_time);
          CREATE INDEX IF NOT EXISTS idx_activities_app ON activities(app_name);
          CREATE INDEX IF NOT EXISTS idx_activities_domain ON activities(domain);
+         DELETE FROM activities WHERE LOWER(app_name) = 'actlog.exe';
         ",
     )?;
 

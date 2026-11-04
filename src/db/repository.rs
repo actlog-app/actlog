@@ -77,7 +77,7 @@ impl Repository {
         let mut stmt = conn.prepare(
             "SELECT id, start_time, end_time, duration, app_name, exe_path, window_title, url, domain, tag_id, is_afk
              FROM activities
-             WHERE start_time >= ?1 AND start_time < ?2
+             WHERE start_time >= ?1 AND start_time < ?2 AND LOWER(app_name) != 'actlog.exe'
              ORDER BY start_time ASC",
         )?;
 
@@ -113,7 +113,7 @@ impl Repository {
     ) -> Result<DaySummary> {
         let total_active_seconds: i64 = conn
             .query_row(
-                "SELECT COALESCE(SUM(duration), 0) FROM activities WHERE start_time >= ?1 AND start_time < ?2 AND is_afk = 0",
+                "SELECT COALESCE(SUM(duration), 0) FROM activities WHERE start_time >= ?1 AND start_time < ?2 AND is_afk = 0 AND LOWER(app_name) != 'actlog.exe'",
                 params![start_ts, end_ts],
                 |r| r.get(0),
             )
@@ -121,7 +121,7 @@ impl Repository {
 
         let total_afk_seconds: i64 = conn
             .query_row(
-                "SELECT COALESCE(SUM(duration), 0) FROM activities WHERE start_time >= ?1 AND start_time < ?2 AND is_afk != 0",
+                "SELECT COALESCE(SUM(duration), 0) FROM activities WHERE start_time >= ?1 AND start_time < ?2 AND is_afk != 0 AND LOWER(app_name) != 'actlog.exe'",
                 params![start_ts, end_ts],
                 |r| r.get(0),
             )
@@ -131,7 +131,7 @@ impl Repository {
         let mut app_stmt = conn.prepare(
             "SELECT app_name, SUM(duration) as total
              FROM activities
-             WHERE start_time >= ?1 AND start_time < ?2 AND is_afk = 0
+             WHERE start_time >= ?1 AND start_time < ?2 AND is_afk = 0 AND LOWER(app_name) != 'actlog.exe'
              GROUP BY app_name
              ORDER BY total DESC
              LIMIT 10",
@@ -147,10 +147,10 @@ impl Repository {
 
         // Categories / Tags
         let mut cat_stmt = conn.prepare(
-            "SELECT COALESCE(t.name, 'Uncategorized'), COALESCE(t.color, '#9E9E9E'), SUM(a.duration) as total
+            "SELECT COALESCE(t.name, 'UNTAGGED'), COALESCE(t.color, '#64748B'), SUM(a.duration) as total
              FROM activities a
              LEFT JOIN tags t ON a.tag_id = t.id
-             WHERE a.start_time >= ?1 AND a.start_time < ?2 AND a.is_afk = 0
+             WHERE a.start_time >= ?1 AND a.start_time < ?2 AND a.is_afk = 0 AND LOWER(a.app_name) != 'actlog.exe'
              GROUP BY a.tag_id
              ORDER BY total DESC",
         )?;

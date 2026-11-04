@@ -85,7 +85,12 @@ impl TrackerEngine {
                 // 2. Poll Foreground Window
                 let window_info = get_foreground_window();
                 let (app_name, exe_path, window_title) = match window_info {
-                    Some(w) => (w.app_name, w.exe_path, w.window_title),
+                    Some(w) => {
+                        if w.app_name.eq_ignore_ascii_case("actlog.exe") {
+                            continue;
+                        }
+                        (w.app_name, w.exe_path, w.window_title)
+                    }
                     None => continue,
                 };
 

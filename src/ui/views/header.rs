@@ -10,8 +10,6 @@ use std::sync::Arc;
 pub enum QuickRange {
     Today,
     Yesterday,
-    SevenDays,
-    ThirtyDays,
 }
 
 pub fn render_header(
@@ -22,9 +20,10 @@ pub fn render_header(
     on_date_changed: &mut bool,
 ) {
     let theme = Theme::DARK;
+    let today = Local::now().date_naive();
 
     ui.horizontal(|ui| {
-        // Date Navigator (◀ [Today, Nov 4] ▶)
+        // Date Navigator (◀ [Today, Nov 04] ▶)
         let frame = egui::Frame::group(ui.style())
             .fill(theme.surface)
             .rounding(Rounding::same(6.0))
@@ -37,9 +36,10 @@ pub fn render_header(
                 *on_date_changed = true;
             }
 
-            let today = Local::now().date_naive();
             let label = if *selected_date == today {
                 format!("Today, {}", selected_date.format("%b %d"))
+            } else if *selected_date == today - Duration::days(1) {
+                format!("Yesterday, {}", selected_date.format("%b %d"))
             } else {
                 selected_date.format("%a, %b %d").to_string()
             };
@@ -54,16 +54,19 @@ pub fn render_header(
 
         ui.add_space(8.0);
 
-        // Quick Range Chips (Today, Yesterday, 7D, 30D)
+        // Functional Quick Range Chips: Today & Yesterday
         let ranges = [
             (QuickRange::Today, "Today"),
             (QuickRange::Yesterday, "Yesterday"),
-            (QuickRange::SevenDays, "7D"),
-            (QuickRange::ThirtyDays, "30D"),
         ];
 
         for (r, name) in ranges {
-            let is_sel = *quick_range == r;
+            let is_sel = if r == QuickRange::Today {
+                *selected_date == today
+            } else {
+                *selected_date == today - Duration::days(1)
+            };
+
             let bg = if is_sel { theme.accent } else { theme.surface };
             let fg = if is_sel { Color32::WHITE } else { theme.text_muted };
 
@@ -71,17 +74,14 @@ pub fn render_header(
                 egui::Button::new(RichText::new(name).size(12.0).color(fg))
                     .fill(bg)
                     .rounding(Rounding::same(5.0))
-                    .min_size(Vec2::new(42.0, 26.0)),
+                    .min_size(Vec2::new(56.0, 26.0)),
             );
 
             if btn.clicked() {
                 *quick_range = r;
-                let today = Local::now().date_naive();
                 match r {
                     QuickRange::Today => *selected_date = today,
                     QuickRange::Yesterday => *selected_date = today - Duration::days(1),
-                    QuickRange::SevenDays => *selected_date = today,
-                    QuickRange::ThirtyDays => *selected_date = today,
                 }
                 *on_date_changed = true;
             }
@@ -104,7 +104,7 @@ pub fn render_header(
 
             ui.add_space(8.0);
 
-            // Live Pulse Pill
+            // Live Activity Pill
             let live_card = egui::Frame::group(ui.style())
                 .fill(theme.surface)
                 .rounding(Rounding::same(6.0))
@@ -127,7 +127,11 @@ pub fn render_header(
                 let status_text = if paused {
                     "Tracking Paused".to_string()
                 } else if let Some(act) = current {
-                    format!("{}: {} ({})", act.app_name, truncate(&act.window_title, 24), format_duration(act.duration))
+                    if act.app_name.eq_ignore_ascii_case("actlog.exe") {
+                        "Viewing Dashboard".to_string()
+                    } else {
+                        format!("{}: {} ({})", act.app_name, truncate(&act.window_title, 20), format_duration(act.duration))
+                    }
                 } else {
                     "Monitoring desktop...".to_string()
                 };
