@@ -56,6 +56,11 @@ impl ActLogApp {
 
 impl eframe::App for ActLogApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        static FIRST_FRAME: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
+        if FIRST_FRAME.swap(false, std::sync::atomic::Ordering::Relaxed) {
+            println!("ActLog GUI: First frame rendered successfully!");
+        }
+
         // Auto-refresh data every 5 seconds
         if self.last_refresh.elapsed().as_secs() >= 5 {
             self.reload_data();
@@ -89,20 +94,11 @@ impl eframe::App for ActLogApp {
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
                 ui.horizontal(|ui| {
-                    let port = self.state.bound_port.load(Ordering::Relaxed);
-                    ui.label(RichText::new(format!("Local API: http://127.0.0.1:{}", port)).size(11.0).color(Color32::from_rgb(120, 120, 120)));
-
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.button("🌐 Open Web View").clicked() {
-                            ui.ctx().open_url(egui::OpenUrl::new_tab(format!("http://127.0.0.1:{}/dashboard", port)));
-                        }
-
-                        let paused = self.state.is_tracking_paused.load(Ordering::Relaxed);
-                        let pause_btn_text = if paused { "▶ Resume Tracking" } else { "⏸ Pause Tracking" };
-                        if ui.button(pause_btn_text).clicked() {
-                            self.state.is_tracking_paused.store(!paused, Ordering::Relaxed);
-                        }
-                    });
+                    let paused = self.state.is_tracking_paused.load(Ordering::Relaxed);
+                    let pause_btn_text = if paused { "▶ Resume Tracking" } else { "⏸ Pause Tracking" };
+                    if ui.button(pause_btn_text).clicked() {
+                        self.state.is_tracking_paused.store(!paused, Ordering::Relaxed);
+                    }
                 });
                 ui.separator();
             });
