@@ -47,12 +47,12 @@ fn main() -> eframe::Result {
     // let server = HttpServer::new(state.clone(), db_path.clone(), 5577);
     // let _server_handle = server.start();
 
-    // 5. Mount Desktop Window UI
+    // 5. Mount Desktop Window UI (1:1 Procrastitracker "Statistics View")
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([1024.0, 680.0])
-            .with_min_inner_size([800.0, 500.0])
-            .with_title("ActLog - Windows Activity Tracker"),
+            .with_inner_size([880.0, 620.0])
+            .with_min_inner_size([650.0, 450.0])
+            .with_title("Statistics View"),
         ..Default::default()
     };
 

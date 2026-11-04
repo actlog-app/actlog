@@ -56,12 +56,21 @@ fn seed_default_data(conn: &Connection) -> Result<()> {
     }
 
     let defaults = [
-        ("Development", "#2196F3", 2),
-        ("Work", "#4CAF50", 1),
-        ("Communication", "#00BCD4", 0),
-        ("Media", "#FF9800", -1),
-        ("Gaming", "#9C27B0", -2),
-        ("Procrastination", "#F44336", -2),
+        ("UNTAGGED", "#D0D0D0", 0),
+        ("work", "#60FF60", 2),
+        ("games", "#6060FF", -2),
+        ("surfing", "#60FFFF", 0),
+        ("entertainment", "#FF60FF", -1),
+        ("communication", "#FFFF60", 1),
+        ("organization", "#FF6060", 1),
+        ("project 1", "#0000FF", 2),
+        ("project 2", "#00FF00", 2),
+        ("project 3", "#FF0000", 2),
+        ("project 4", "#B0B060", 2),
+        ("project 5", "#B060B0", 2),
+        ("project 6", "#60B0B0", 2),
+        ("project 7", "#606060", 2),
+        ("project 8", "#B0B0B0", 2),
     ];
 
     for (name, color, score) in defaults {
@@ -72,17 +81,15 @@ fn seed_default_data(conn: &Connection) -> Result<()> {
     }
 
     let default_rules = [
-        ("code.exe", "app_name", "Development", 10),
-        ("devenv.exe", "app_name", "Development", 10),
-        ("cargo.exe", "app_name", "Development", 10),
-        ("slack.exe", "app_name", "Communication", 5),
-        ("discord.exe", "app_name", "Communication", 5),
-        ("steam.exe", "app_name", "Gaming", 10),
-        ("youtube.com", "domain", "Media", 8),
-        ("twitch.tv", "domain", "Media", 8),
-        ("reddit.com", "domain", "Procrastination", 8),
-        ("twitter.com", "domain", "Procrastination", 8),
-        ("x.com", "domain", "Procrastination", 8),
+        ("code.exe", "app_name", "work", 10),
+        ("devenv.exe", "app_name", "work", 10),
+        ("cargo.exe", "app_name", "work", 10),
+        ("slack.exe", "app_name", "communication", 5),
+        ("discord.exe", "app_name", "communication", 5),
+        ("steam.exe", "app_name", "games", 10),
+        ("youtube.com", "domain", "entertainment", 8),
+        ("twitch.tv", "domain", "entertainment", 8),
+        ("reddit.com", "domain", "surfing", 8),
     ];
 
     for (pattern, match_field, tag_name, priority) in default_rules {
