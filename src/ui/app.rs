@@ -1,6 +1,7 @@
 use crate::db::models::{ActivitySession, Tag};
 use crate::db::repository::Repository;
 use crate::tracker::engine::SharedTrackerState;
+use crate::ui::theme::{configure_impeccable_theme, Theme};
 use crate::ui::views::timeline::parse_hex_color;
 use crate::ui::views::tree::{format_pt_time, render_procrastitracker_tree, ActivityNode};
 use chrono::{Datelike, Duration, Local, NaiveDate, TimeZone};
@@ -63,6 +64,7 @@ pub struct ActLogApp {
     tags: Vec<Tag>,
     tree_nodes: Vec<ActivityNode>,
     last_refresh: Instant,
+    theme_configured: bool,
 }
 
 impl ActLogApp {
@@ -87,6 +89,7 @@ impl ActLogApp {
             tags: Vec::new(),
             tree_nodes: Vec::new(),
             last_refresh: Instant::now(),
+            theme_configured: false,
         };
         app.reload_data();
         app
@@ -175,11 +178,10 @@ impl ActLogApp {
 
 impl eframe::App for ActLogApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        // Set classic Windows Light Theme (gray dialog background, white content frames)
-        let mut visuals = egui::Visuals::light();
-        visuals.panel_fill = Color32::from_rgb(240, 240, 240);
-        visuals.window_fill = Color32::from_rgb(240, 240, 240);
-        ctx.set_visuals(visuals);
+        if !self.theme_configured {
+            configure_impeccable_theme(ctx);
+            self.theme_configured = true;
+        }
 
         // Auto reload data every 5 seconds
         if self.last_refresh.elapsed().as_secs() >= 5 {
@@ -189,22 +191,22 @@ impl eframe::App for ActLogApp {
         ctx.request_repaint_after(std::time::Duration::from_millis(1000));
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            // 1. Top Tab Strip (Statistics / Time)
-            self.render_tab_strip(ui);
-            ui.add_space(4.0);
+            // 1. Top Bar: Segmented Tabs + Window Title
+            self.render_top_header(ui);
+            ui.add_space(8.0);
 
             // 2. Main split view: Left control panel + Right tree / graph panel
             ui.horizontal(|ui| {
-                // Left Panel (195px fixed width)
+                // Left Panel (210px width)
                 ui.allocate_ui_with_layout(
-                    Vec2::new(195.0, ui.available_height()),
+                    Vec2::new(210.0, ui.available_height()),
                     egui::Layout::top_down(egui::Align::LEFT),
                     |ui| {
                         self.render_left_controls(ui);
                     },
                 );
 
-                ui.separator();
+                ui.add_space(6.0);
 
                 // Right Panel (Tree View or Time Graph)
                 ui.vertical(|ui| {
@@ -219,61 +221,105 @@ impl eframe::App for ActLogApp {
 }
 
 impl ActLogApp {
-    fn render_tab_strip(&mut self, ui: &mut Ui) {
+    fn render_top_header(&mut self, ui: &mut Ui) {
+        let theme = Theme::DARK;
+
         ui.horizontal(|ui| {
-            let stats_btn = ui.selectable_label(
-                self.active_tab == ActiveTab::Statistics,
-                egui::RichText::new("Statistics").size(13.0).strong(),
+            // Segmented Pill Tabs
+            let (rect, _) = ui.allocate_exact_size(Vec2::new(210.0, 32.0), egui::Sense::hover());
+            ui.painter().rect_filled(rect, Rounding::same(6.0), theme.surface);
+            ui.painter().rect_stroke(rect, Rounding::same(6.0), Stroke::new(1.0, theme.border));
+
+            let half_w = (rect.width() - 4.0) / 2.0;
+            let stats_rect = egui::Rect::from_min_size(
+                egui::Pos2::new(rect.left() + 2.0, rect.top() + 2.0),
+                Vec2::new(half_w, rect.height() - 4.0),
             );
-            if stats_btn.clicked() {
+            let time_rect = egui::Rect::from_min_size(
+                egui::Pos2::new(rect.left() + 2.0 + half_w, rect.top() + 2.0),
+                Vec2::new(half_w, rect.height() - 4.0),
+            );
+
+            // Statistics Pill
+            let stats_hovered = ui.rect_contains_pointer(stats_rect);
+            if self.active_tab == ActiveTab::Statistics {
+                ui.painter().rect_filled(stats_rect, Rounding::same(5.0), theme.accent);
+            } else if stats_hovered {
+                ui.painter().rect_filled(stats_rect, Rounding::same(5.0), theme.surface_hover);
+            }
+            if ui.put(stats_rect, egui::Button::new("Statistics").frame(false)).clicked() {
                 self.active_tab = ActiveTab::Statistics;
             }
 
-            let time_btn = ui.selectable_label(
-                self.active_tab == ActiveTab::Time,
-                egui::RichText::new("Time").size(13.0).strong(),
-            );
-            if time_btn.clicked() {
+            // Time Pill
+            let time_hovered = ui.rect_contains_pointer(time_rect);
+            if self.active_tab == ActiveTab::Time {
+                ui.painter().rect_filled(time_rect, Rounding::same(5.0), theme.accent);
+            } else if time_hovered {
+                ui.painter().rect_filled(time_rect, Rounding::same(5.0), theme.surface_hover);
+            }
+            if ui.put(time_rect, egui::Button::new("Time").frame(false)).clicked() {
                 self.active_tab = ActiveTab::Time;
             }
+
+            ui.add_space(12.0);
+
+            // Subtitle
+            ui.label(
+                egui::RichText::new("ProcrastiTracker Statistics")
+                    .size(13.0)
+                    .color(theme.text_dim),
+            );
         });
-        ui.separator();
     }
 
     fn render_left_controls(&mut self, ui: &mut Ui) {
+        let theme = Theme::DARK;
         let mut filter_changed = false;
 
-        // Expanded Level Slider
-        ui.label(egui::RichText::new("Expanded Level:").size(11.0));
-        let slider = egui::Slider::new(&mut self.expand_level, 1..=5);
-        if ui.add(slider).changed() {
-            filter_changed = true;
-        }
-        ui.add_space(4.0);
+        // Panel 1: Filter sliders & inputs
+        render_card(ui, "FILTERING", |ui| {
+            ui.label(egui::RichText::new("Expanded Level").size(11.0).color(theme.text_muted));
+            let slider = egui::Slider::new(&mut self.expand_level, 1..=5).show_value(true);
+            if ui.add(slider).changed() {
+                filter_changed = true;
+            }
 
-        // Filter < Minutes
-        ui.label(egui::RichText::new("Filter < Minutes:").size(11.0));
-        let num_edit = egui::DragValue::new(&mut self.filter_minutes).range(0..=120);
-        if ui.add(num_edit).changed() {
-            filter_changed = true;
-        }
-        ui.add_space(4.0);
-
-        // Filter on sub-string
-        ui.label(egui::RichText::new("Filter on sub-string:").size(11.0));
-        let text_box = egui::TextEdit::singleline(&mut self.substring_filter).desired_width(180.0);
-        if ui.add(text_box).changed() {
-            filter_changed = true;
-        }
-        ui.add_space(8.0);
-
-        // Date Range GroupBox
-        render_groupbox(ui, "Date Range", |ui| {
-            ui.label(egui::RichText::new(format!("From: {}", self.start_date.format("%Y-%m-%d"))).size(11.0));
-            ui.label(egui::RichText::new(format!("To:   {}", self.end_date.format("%Y-%m-%d"))).size(11.0));
             ui.add_space(4.0);
+            ui.label(egui::RichText::new("Filter < Minutes").size(11.0).color(theme.text_muted));
+            let num_edit = egui::DragValue::new(&mut self.filter_minutes)
+                .range(0..=180)
+                .speed(1.0);
+            if ui.add(num_edit).changed() {
+                filter_changed = true;
+            }
 
-            ui.label(egui::RichText::new("Quick Set:").size(11.0));
+            ui.add_space(4.0);
+            ui.label(egui::RichText::new("Filter on sub-string").size(11.0).color(theme.text_muted));
+            let text_box = egui::TextEdit::singleline(&mut self.substring_filter)
+                .hint_text("Search window or app...")
+                .desired_width(190.0);
+            if ui.add(text_box).changed() {
+                filter_changed = true;
+            }
+        });
+
+        ui.add_space(6.0);
+
+        // Panel 2: Date Range
+        render_card(ui, "DATE RANGE", |ui| {
+            ui.horizontal(|ui| {
+                ui.label(egui::RichText::new("From:").size(11.0).color(theme.text_dim));
+                ui.label(egui::RichText::new(self.start_date.format("%Y-%m-%d").to_string()).size(11.0).strong());
+            });
+            ui.horizontal(|ui| {
+                ui.label(egui::RichText::new("To:  ").size(11.0).color(theme.text_dim));
+                ui.label(egui::RichText::new(self.end_date.format("%Y-%m-%d").to_string()).size(11.0).strong());
+            });
+
+            ui.add_space(4.0);
+            ui.label(egui::RichText::new("Quick Set").size(11.0).color(theme.text_muted));
+
             let prev_qs = self.quick_set;
             egui::ComboBox::from_id_salt("quick_set_combo")
                 .selected_text(match self.quick_set {
@@ -284,6 +330,7 @@ impl ActLogApp {
                     QuickSetRange::ThisMonth => "This Month",
                     QuickSetRange::ThisYear => "This Year",
                 })
+                .width(180.0)
                 .show_ui(ui, |ui| {
                     ui.selectable_value(&mut self.quick_set, QuickSetRange::All, "All");
                     ui.selectable_value(&mut self.quick_set, QuickSetRange::Today, "Today");
@@ -298,10 +345,10 @@ impl ActLogApp {
             }
         });
 
-        ui.add_space(8.0);
+        ui.add_space(6.0);
 
-        // Tagging GroupBox
-        render_groupbox(ui, "Tagging", |ui| {
+        // Panel 3: Tagging
+        render_card(ui, "TAGGING", |ui| {
             if ui.checkbox(&mut self.filter_on_tag, "Filter on tag").changed() {
                 filter_changed = true;
             }
@@ -310,7 +357,7 @@ impl ActLogApp {
 
             egui::ScrollArea::vertical()
                 .id_salt("tag_list_scroll")
-                .max_height(160.0)
+                .max_height(170.0)
                 .show(ui, |ui| {
                     for tag in &self.tags {
                         let is_sel = self.selected_tag_id == tag.id;
@@ -318,10 +365,9 @@ impl ActLogApp {
 
                         ui.horizontal(|ui| {
                             let (swatch, _) = ui.allocate_exact_size(Vec2::new(10.0, 10.0), egui::Sense::hover());
-                            ui.painter().rect_filled(swatch, Rounding::ZERO, tag_color);
-                            ui.painter().rect_stroke(swatch, Rounding::ZERO, Stroke::new(1.0, Color32::from_rgb(120, 120, 120)));
+                            ui.painter().rect_filled(swatch, Rounding::same(3.0), tag_color);
 
-                            if ui.selectable_label(is_sel, egui::RichText::new(&tag.name).size(11.0)).clicked() {
+                            if ui.selectable_label(is_sel, egui::RichText::new(&tag.name).size(11.5)).clicked() {
                                 self.selected_tag_id = tag.id;
                                 if self.filter_on_tag {
                                     filter_changed = true;
@@ -331,9 +377,8 @@ impl ActLogApp {
                     }
                 });
 
-            ui.add_space(4.0);
-            if ui.button("Apply Tag").clicked() {
-                // Apply tag to current selected node
+            ui.add_space(6.0);
+            if ui.button(egui::RichText::new("Apply Tag").strong()).clicked() {
                 if let (Some(ref node_name), Some(tag_id)) = (&self.selected_node_name, self.selected_tag_id) {
                     if let Ok(conn) = Connection::open(&self.db_path) {
                         let _ = conn.execute(
@@ -352,6 +397,7 @@ impl ActLogApp {
     }
 
     fn render_statistics_view(&mut self, ui: &mut Ui) {
+        let theme = Theme::DARK;
         let total_active_sec: i64 = self
             .activities
             .iter()
@@ -359,38 +405,50 @@ impl ActLogApp {
             .map(|a| a.duration)
             .sum();
 
+        // Top summary bar
         ui.horizontal(|ui| {
             ui.label(
-                egui::RichText::new(format!(
-                    "Total Tracked Time: {} ({} activities)",
-                    format_pt_time(total_active_sec),
-                    self.activities.len()
-                ))
-                .strong()
-                .size(12.0)
-                .color(Color32::from_rgb(40, 40, 40)),
+                egui::RichText::new(format!("Total Tracked Time: {}", format_pt_time(total_active_sec)))
+                    .size(13.0)
+                    .strong()
+                    .color(theme.text_primary),
+            );
+
+            ui.label(
+                egui::RichText::new(format!("•  {} items in view", self.activities.len()))
+                    .size(12.0)
+                    .color(theme.text_dim),
             );
         });
 
-        ui.separator();
+        ui.add_space(6.0);
 
-        // White framed tree area matching Procrastitracker
+        // Framed main tree area
         let frame = egui::Frame::group(ui.style())
-            .fill(Color32::WHITE)
-            .rounding(Rounding::ZERO)
-            .stroke(Stroke::new(1.0, Color32::from_rgb(127, 157, 185)))
-            .inner_margin(egui::Margin::same(6.0));
+            .fill(theme.surface)
+            .rounding(Rounding::same(8.0))
+            .stroke(Stroke::new(1.0, theme.border))
+            .inner_margin(egui::Margin::same(10.0));
 
         frame.show(ui, |ui| {
             egui::ScrollArea::both()
                 .id_salt("procrastitracker_tree_scroll")
                 .show(ui, |ui| {
                     if self.tree_nodes.is_empty() {
-                        ui.label(
-                            egui::RichText::new("No activity records match the current filters.")
-                                .color(Color32::GRAY)
-                                .size(12.0),
-                        );
+                        ui.add_space(20.0);
+                        ui.vertical_centered(|ui| {
+                            ui.label(
+                                egui::RichText::new("No activity records match the current filters.")
+                                    .color(theme.text_dim)
+                                    .size(13.0),
+                            );
+                            ui.add_space(4.0);
+                            ui.label(
+                                egui::RichText::new("Adjust 'Filter < Minutes', search filter, or date range.")
+                                    .color(theme.text_dim)
+                                    .size(11.0),
+                            );
+                        });
                     } else {
                         render_procrastitracker_tree(
                             ui,
@@ -405,8 +463,10 @@ impl ActLogApp {
     }
 
     fn render_time_view(&mut self, ui: &mut Ui) {
+        let theme = Theme::DARK;
+
         ui.horizontal(|ui| {
-            ui.label(egui::RichText::new("Period:").size(12.0));
+            ui.label(egui::RichText::new("Period:").size(12.0).color(theme.text_muted));
             egui::ComboBox::from_id_salt("graph_period_combo")
                 .selected_text(match self.graph_period {
                     GraphPeriod::PerDay => "Per Day",
@@ -414,6 +474,7 @@ impl ActLogApp {
                     GraphPeriod::PerMonth => "Per Month",
                     GraphPeriod::PerYear => "Per Year",
                 })
+                .width(120.0)
                 .show_ui(ui, |ui| {
                     ui.selectable_value(&mut self.graph_period, GraphPeriod::PerDay, "Per Day");
                     ui.selectable_value(&mut self.graph_period, GraphPeriod::PerWeek, "Per Week");
@@ -425,23 +486,23 @@ impl ActLogApp {
             ui.checkbox(&mut self.graph_normalized, "Normalized");
         });
 
-        ui.separator();
+        ui.add_space(6.0);
 
         let frame = egui::Frame::group(ui.style())
-            .fill(Color32::WHITE)
-            .rounding(Rounding::ZERO)
-            .stroke(Stroke::new(1.0, Color32::from_rgb(127, 157, 185)))
-            .inner_margin(egui::Margin::same(8.0));
+            .fill(theme.surface)
+            .rounding(Rounding::same(8.0))
+            .stroke(Stroke::new(1.0, theme.border))
+            .inner_margin(egui::Margin::same(12.0));
 
         frame.show(ui, |ui| {
             ui.label(
-                egui::RichText::new("Time Graph (Daily/Weekly Usage Stack)")
+                egui::RichText::new("Time Graph (Daily/Weekly Usage Breakdown)")
                     .strong()
-                    .size(13.0),
+                    .size(13.0)
+                    .color(theme.text_primary),
             );
-            ui.add_space(8.0);
+            ui.add_space(12.0);
 
-            // Group by day for graph
             use std::collections::BTreeMap;
             let mut day_map: BTreeMap<String, i64> = BTreeMap::new();
             for act in &self.activities {
@@ -460,41 +521,48 @@ impl ActLogApp {
                 for (day_str, secs) in &day_map {
                     ui.vertical(|ui| {
                         let bar_height = if self.graph_normalized {
-                            120.0
+                            140.0
                         } else {
-                            (120.0 * (*secs as f32 / max_val)).max(4.0)
+                            (140.0 * (*secs as f32 / max_val)).max(4.0)
                         };
 
-                        let (rect, _) = ui.allocate_exact_size(Vec2::new(32.0, 120.0), egui::Sense::hover());
+                        let (rect, _) = ui.allocate_exact_size(Vec2::new(36.0, 140.0), egui::Sense::hover());
                         let fill_rect = egui::Rect::from_min_max(
                             egui::Pos2::new(rect.left(), rect.bottom() - bar_height),
                             rect.max,
                         );
 
-                        ui.painter().rect_filled(rect, Rounding::ZERO, Color32::from_rgb(240, 240, 240));
-                        ui.painter().rect_filled(fill_rect, Rounding::ZERO, Color32::from_rgb(96, 255, 96));
-                        ui.painter().rect_stroke(rect, Rounding::ZERO, Stroke::new(1.0, Color32::from_rgb(180, 180, 180)));
+                        ui.painter().rect_filled(rect, Rounding::same(4.0), Color32::from_rgb(28, 32, 40));
+                        ui.painter().rect_filled(fill_rect, Rounding::same(4.0), Color32::from_rgb(96, 255, 96));
+                        ui.painter().rect_stroke(rect, Rounding::same(4.0), Stroke::new(1.0, theme.border));
 
-                        ui.label(egui::RichText::new(&day_str[5..]).size(9.0));
-                        ui.label(egui::RichText::new(format_pt_time(*secs)).size(9.0));
+                        ui.label(egui::RichText::new(&day_str[5..]).size(10.0).color(theme.text_dim));
+                        ui.label(egui::RichText::new(format_pt_time(*secs)).size(10.0).monospace().color(theme.text_muted));
                     });
-                    ui.add_space(4.0);
+                    ui.add_space(6.0);
                 }
             });
         });
     }
 }
 
-fn render_groupbox(ui: &mut Ui, title: &str, add_contents: impl FnOnce(&mut Ui)) {
-    ui.group(|ui| {
+fn render_card(ui: &mut Ui, title: &str, add_contents: impl FnOnce(&mut Ui)) {
+    let theme = Theme::DARK;
+    let frame = egui::Frame::group(ui.style())
+        .fill(theme.surface)
+        .rounding(Rounding::same(8.0))
+        .stroke(Stroke::new(1.0, theme.border))
+        .inner_margin(egui::Margin::symmetric(10.0, 8.0));
+
+    frame.show(ui, |ui| {
         ui.set_width(ui.available_width());
         ui.label(
             egui::RichText::new(title)
+                .size(10.0)
                 .strong()
-                .size(11.0)
-                .color(Color32::from_rgb(70, 70, 70)),
+                .color(theme.text_dim),
         );
-        ui.add_space(2.0);
+        ui.add_space(4.0);
         add_contents(ui);
     });
 }

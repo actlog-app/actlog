@@ -1,4 +1,5 @@
 use crate::db::models::{ActivitySession, Tag};
+use crate::ui::theme::Theme;
 use crate::ui::views::timeline::parse_hex_color;
 use egui::{Color32, Rect, Rounding, Stroke, Ui, Vec2};
 
@@ -21,7 +22,6 @@ impl ActivityNode {
     ) -> Vec<ActivityNode> {
         use std::collections::BTreeMap;
 
-        // Group by app_name -> window_title
         let mut app_map: BTreeMap<String, (i64, Option<i64>, BTreeMap<String, (i64, Option<i64>)>)> =
             BTreeMap::new();
 
@@ -45,7 +45,7 @@ impl ActivityNode {
             } else if !act.window_title.is_empty() {
                 act.window_title.clone()
             } else {
-                "(no title)".to_string()
+                "(untitled)".to_string()
             };
 
             let sub_entry = entry.2.entry(sub_title).or_insert((0, act.tag_id));
@@ -88,7 +88,6 @@ impl ActivityNode {
                 continue;
             }
 
-            // Sort children by duration desc
             children.sort_by(|a, b| b.total_seconds.cmp(&a.total_seconds));
 
             roots.push(ActivityNode {
@@ -100,7 +99,6 @@ impl ActivityNode {
             });
         }
 
-        // Sort roots by duration desc (Procrastitracker ranking)
         roots.sort_by(|a, b| b.total_seconds.cmp(&a.total_seconds));
         roots
     }
@@ -113,19 +111,10 @@ pub fn render_procrastitracker_tree(
     total_db_seconds: i64,
     selected_node_name: &mut Option<String>,
 ) {
-    let row_height = 20.0;
     let max_seconds = total_db_seconds.max(1) as f32;
 
     for node in nodes.iter_mut() {
-        render_tree_node(
-            ui,
-            node,
-            tags,
-            max_seconds,
-            0,
-            row_height,
-            selected_node_name,
-        );
+        render_tree_node(ui, node, tags, max_seconds, 0, selected_node_name);
     }
 }
 
@@ -135,88 +124,107 @@ fn render_tree_node(
     tags: &[Tag],
     max_seconds: f32,
     depth: usize,
-    row_height: f32,
     selected_node_name: &mut Option<String>,
 ) {
     let has_children = !node.children.is_empty();
-    let indent = (depth as f32) * 16.0;
+    let indent = (depth as f32) * 18.0;
+    let theme = Theme::DARK;
 
-    ui.horizontal(|ui| {
+    let is_selected = selected_node_name.as_deref() == Some(&node.name);
+
+    let row_response = ui.horizontal(|ui| {
         ui.add_space(indent);
 
-        // Expand/collapse button
+        // Modern Chevron Toggle
         if has_children {
-            let symbol = if node.is_expanded { "[-] " } else { "[+] " };
-            if ui.button(egui::RichText::new(symbol).monospace().size(11.0)).clicked() {
+            let chevron = if node.is_expanded { "▾" } else { "▸" };
+            let chevron_btn = ui.add(
+                egui::Button::new(egui::RichText::new(chevron).size(12.0).color(theme.text_muted))
+                    .frame(false)
+                    .min_size(Vec2::new(14.0, 14.0)),
+            );
+            if chevron_btn.clicked() {
                 node.is_expanded = !node.is_expanded;
             }
         } else {
             ui.add_space(18.0);
         }
 
-        // Color tag swatch
+        // Color Chip Pill
         let tag_color = resolve_tag_color(node.tag_id, tags);
-        let (swatch_rect, _) =
-            ui.allocate_exact_size(Vec2::new(10.0, 10.0), egui::Sense::hover());
-        ui.painter().rect_filled(swatch_rect, Rounding::ZERO, tag_color);
+        let (chip_rect, _) = ui.allocate_exact_size(Vec2::new(10.0, 10.0), egui::Sense::hover());
+        ui.painter().rect_filled(chip_rect, Rounding::same(3.0), tag_color);
         ui.painter().rect_stroke(
-            swatch_rect,
-            Rounding::ZERO,
-            Stroke::new(1.0, Color32::from_rgb(100, 100, 100)),
+            chip_rect,
+            Rounding::same(3.0),
+            Stroke::new(1.0, Color32::from_black_alpha(80)),
         );
 
-        // Name (selectable)
-        let is_selected = selected_node_name.as_deref() == Some(&node.name);
-        let name_label = egui::SelectableLabel::new(
-            is_selected,
-            egui::RichText::new(&node.name).size(12.0).color(Color32::BLACK),
-        );
-        if ui.add(name_label).clicked() {
+        ui.add_space(2.0);
+
+        // Name
+        let text_color = if is_selected {
+            theme.accent_hover
+        } else if depth == 0 {
+            theme.text_primary
+        } else {
+            theme.text_muted
+        };
+
+        let label_text = egui::RichText::new(&node.name)
+            .size(12.5)
+            .strong()
+            .color(text_color);
+
+        if ui.add(egui::SelectableLabel::new(is_selected, label_text)).clicked() {
             *selected_node_name = Some(node.name.clone());
         }
 
-        // Stacked colored bar graph (Procrastitracker style)
-        let bar_width = 160.0;
-        let pct = (node.total_seconds as f32 / max_seconds).clamp(0.0, 1.0);
-        let fill_w = (bar_width * pct).max(2.0);
-
+        // Right-aligned Progress Bar & Duration
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            // Percentage & Time label
             let time_str = format_pt_time(node.total_seconds);
+            let pct = (node.total_seconds as f32 / max_seconds).clamp(0.0, 1.0);
             let pct_str = format!("{:>5.1}%", pct * 100.0);
+
             ui.label(
                 egui::RichText::new(format!("{}  {}", pct_str, time_str))
                     .monospace()
-                    .size(11.0)
-                    .color(Color32::from_rgb(60, 60, 60)),
+                    .size(11.5)
+                    .color(theme.text_muted),
             );
 
-            // Bar box
+            ui.add_space(8.0);
+
+            // Sleek Rounded Bar
+            let bar_width = 150.0;
             let (bar_rect, _) =
-                ui.allocate_exact_size(Vec2::new(bar_width, 12.0), egui::Sense::hover());
-            ui.painter().rect_filled(bar_rect, Rounding::ZERO, Color32::from_rgb(230, 230, 230));
-            ui.painter().rect_stroke(
+                ui.allocate_exact_size(Vec2::new(bar_width, 8.0), egui::Sense::hover());
+
+            // Track background
+            ui.painter().rect_filled(
                 bar_rect,
-                Rounding::ZERO,
-                Stroke::new(1.0, Color32::from_rgb(180, 180, 180)),
+                Rounding::same(4.0),
+                Color32::from_rgb(32, 36, 45),
             );
 
-            let filled_rect = Rect::from_min_size(bar_rect.min, Vec2::new(fill_w, bar_rect.height()));
-            ui.painter().rect_filled(filled_rect, Rounding::ZERO, tag_color);
+            // Filled progress
+            let fill_w = (bar_width * pct).max(3.0);
+            let fill_rect = Rect::from_min_size(bar_rect.min, Vec2::new(fill_w, bar_rect.height()));
+            ui.painter().rect_filled(fill_rect, Rounding::same(4.0), tag_color);
         });
     });
 
+    if row_response.response.hovered() && !is_selected {
+        ui.painter().rect_stroke(
+            row_response.response.rect,
+            Rounding::same(4.0),
+            Stroke::new(1.0, theme.border_subtle),
+        );
+    }
+
     if node.is_expanded && has_children {
         for child in node.children.iter_mut() {
-            render_tree_node(
-                ui,
-                child,
-                tags,
-                max_seconds,
-                depth + 1,
-                row_height,
-                selected_node_name,
-            );
+            render_tree_node(ui, child, tags, max_seconds, depth + 1, selected_node_name);
         }
     }
 }
@@ -239,5 +247,5 @@ fn resolve_tag_color(tag_id: Option<i64>, tags: &[Tag]) -> Color32 {
             return parse_hex_color(&t.color);
         }
     }
-    Color32::from_rgb(208, 208, 208) // UNTAGGED default
+    Color32::from_rgb(100, 116, 139) // Slate-500 UNTAGGED default
 }
