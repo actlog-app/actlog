@@ -28,6 +28,14 @@ fn resolve_db_path() -> String {
 }
 
 fn main() -> eframe::Result {
+    let args: Vec<String> = std::env::args().collect();
+    for arg in &args[1..] {
+        if arg == "-v" || arg == "--version" {
+            println!("ActLog v{}", env!("CARGO_PKG_VERSION"));
+            return Ok(());
+        }
+    }
+
     let db_path = resolve_db_path();
 
     // 1. Initialize SQLite Database
@@ -52,7 +60,7 @@ fn main() -> eframe::Result {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([1040.0, 720.0])
             .with_min_inner_size([750.0, 500.0])
-            .with_title("ActLog - Focus & Activity Dashboard"),
+            .with_title(format!("ActLog v{} - Focus & Activity Dashboard", env!("CARGO_PKG_VERSION"))),
         ..Default::default()
     };
 

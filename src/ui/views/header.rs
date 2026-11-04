@@ -23,6 +23,30 @@ pub fn render_header(
     let today = Local::now().date_naive();
 
     ui.horizontal(|ui| {
+        // App Brand & Version Badge
+        ui.horizontal(|ui| {
+            ui.label(
+                RichText::new("ActLog")
+                    .strong()
+                    .size(15.0)
+                    .color(theme.text_primary),
+            );
+            let ver_badge = egui::Frame::group(ui.style())
+                .fill(theme.surface)
+                .rounding(Rounding::same(4.0))
+                .stroke(Stroke::new(1.0, theme.border))
+                .inner_margin(egui::Margin::symmetric(5.0, 2.0));
+            ver_badge.show(ui, |ui| {
+                ui.label(
+                    RichText::new(format!("v{}", env!("CARGO_PKG_VERSION")))
+                        .size(11.0)
+                        .color(theme.accent),
+                );
+            });
+        });
+
+        ui.add_space(8.0);
+
         // Date Navigator (◀ [Today, Nov 04] ▶)
         let frame = egui::Frame::group(ui.style())
             .fill(theme.surface)
