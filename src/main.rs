@@ -4,10 +4,31 @@ use actlog::tracker::engine::{SharedTrackerState, TrackerEngine};
 use actlog::ui::app::ActLogApp;
 use eframe::egui;
 use rusqlite::Connection;
+use std::path::PathBuf;
 use std::sync::Arc;
 
+fn resolve_db_path() -> String {
+    let args: Vec<String> = std::env::args().collect();
+    for i in 1..args.len() {
+        if args[i] == "--db-path" && i + 1 < args.len() {
+            return args[i + 1].clone();
+        }
+        if args[i] == "--portable" {
+            return "actlog.db".to_string();
+        }
+    }
+
+    if let Ok(appdata) = std::env::var("APPDATA") {
+        let dir = PathBuf::from(appdata).join("ActLog");
+        let _ = std::fs::create_dir_all(&dir);
+        return dir.join("actlog.db").to_string_lossy().to_string();
+    }
+
+    "actlog.db".to_string()
+}
+
 fn main() -> eframe::Result {
-    let db_path = "actlog.db".to_string();
+    let db_path = resolve_db_path();
 
     // 1. Initialize SQLite Database
     {
