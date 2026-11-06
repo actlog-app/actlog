@@ -19,12 +19,17 @@ pub fn render_headline_metrics(ui: &mut Ui, summary: Option<&DaySummary>) {
     };
 
     let total = active_sec + afk_sec;
-    let avail_width = ui.available_width();
-    let col_w = (avail_width - 8.0) / 2.0;
 
-    ui.horizontal(|ui| {
+    ui.columns(2, |cols| {
         // Card 1: Total Active Time
-        render_metric_box(ui, col_w, |ui| {
+        let frame1 = egui::Frame::group(cols[0].style())
+            .fill(theme.surface)
+            .rounding(Rounding::same(8.0))
+            .stroke(Stroke::new(1.0, theme.border))
+            .inner_margin(egui::Margin::symmetric(14.0, 10.0));
+
+        frame1.show(&mut cols[0], |ui| {
+            ui.set_width(ui.available_width());
             ui.label(RichText::new("TOTAL ACTIVE TIME").size(10.5).strong().color(theme.text_dim));
             ui.add_space(2.0);
             ui.label(RichText::new(format_duration(active_sec)).size(24.0).strong().color(theme.text_primary));
@@ -32,10 +37,15 @@ pub fn render_headline_metrics(ui: &mut Ui, summary: Option<&DaySummary>) {
             ui.label(RichText::new(format!("Top Application: {}", top_app)).size(11.0).color(theme.text_muted));
         });
 
-        ui.add_space(8.0);
-
         // Card 2: Away / Idle Time
-        render_metric_box(ui, col_w, |ui| {
+        let frame2 = egui::Frame::group(cols[1].style())
+            .fill(theme.surface)
+            .rounding(Rounding::same(8.0))
+            .stroke(Stroke::new(1.0, theme.border))
+            .inner_margin(egui::Margin::symmetric(14.0, 10.0));
+
+        frame2.show(&mut cols[1], |ui| {
+            ui.set_width(ui.available_width());
             ui.label(RichText::new("AWAY / IDLE TIME").size(10.5).strong().color(theme.text_dim));
             ui.add_space(2.0);
             ui.label(RichText::new(format_duration(afk_sec)).size(24.0).strong().color(Color32::from_rgb(255, 152, 0)));
@@ -43,19 +53,5 @@ pub fn render_headline_metrics(ui: &mut Ui, summary: Option<&DaySummary>) {
             let total_str = format_duration(total);
             ui.label(RichText::new(format!("Total Elapsed Today: {}", total_str)).size(11.0).color(theme.text_muted));
         });
-    });
-}
-
-fn render_metric_box(ui: &mut Ui, width: f32, add_contents: impl FnOnce(&mut Ui)) {
-    let theme = Theme::DARK;
-    let frame = egui::Frame::group(ui.style())
-        .fill(theme.surface)
-        .rounding(Rounding::same(8.0))
-        .stroke(Stroke::new(1.0, theme.border))
-        .inner_margin(egui::Margin::symmetric(14.0, 10.0));
-
-    frame.show(ui, |ui| {
-        ui.set_width(width);
-        ui.vertical(add_contents);
     });
 }

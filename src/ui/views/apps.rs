@@ -21,11 +21,13 @@ pub fn render_apps_and_categories(
         .map(|a| a.duration)
         .sum();
 
-    let full_remaining_height = ui.available_height().max(200.0);
-    let category_width = 210.0;
+    let full_remaining_height = ui.available_height().max(180.0);
+    let total_width = ui.available_width();
+    let category_width = (total_width * 0.22).clamp(160.0, 220.0);
+    let apps_width = (total_width - category_width - ui.spacing().item_spacing.x).max(200.0);
 
     ui.horizontal(|ui| {
-        // Left Column: Categories (Fixed 210px, Full Height)
+        // Left Column: Categories
         ui.allocate_ui_with_layout(
             Vec2::new(category_width, full_remaining_height),
             egui::Layout::top_down(egui::Align::LEFT),
@@ -37,8 +39,8 @@ pub fn render_apps_and_categories(
                     .inner_margin(egui::Margin::symmetric(12.0, 10.0));
 
                 frame.show(ui, |ui| {
-                    ui.set_min_height(full_remaining_height - 20.0);
-                    ui.set_width(category_width - 24.0);
+                    ui.set_width(ui.available_width());
+                    ui.set_height(ui.available_height());
 
                     ui.label(RichText::new("CATEGORIES").size(10.5).strong().color(theme.text_dim));
                     ui.add_space(6.0);
@@ -99,13 +101,9 @@ pub fn render_apps_and_categories(
             },
         );
 
-        ui.add_space(6.0);
-
-        // Right Column: Applications & Tasks (Takes ALL remaining width & height!)
-        let right_avail_width = ui.available_width().max(300.0);
-
+        // Right Column: Applications & Tasks (Takes ALL remaining width & height)
         ui.allocate_ui_with_layout(
-            Vec2::new(right_avail_width, full_remaining_height),
+            Vec2::new(apps_width, full_remaining_height),
             egui::Layout::top_down(egui::Align::LEFT),
             |ui| {
                 let frame = egui::Frame::group(ui.style())
@@ -115,15 +113,15 @@ pub fn render_apps_and_categories(
                     .inner_margin(egui::Margin::symmetric(14.0, 10.0));
 
                 frame.show(ui, |ui| {
-                    ui.set_min_height(full_remaining_height - 20.0);
-                    ui.set_width(right_avail_width - 28.0);
+                    ui.set_width(ui.available_width());
+                    ui.set_height(ui.available_height());
 
                     // Header + Responsive Search Box
                     ui.horizontal(|ui| {
                         ui.label(RichText::new("APPLICATIONS & TASKS").size(10.5).strong().color(theme.text_dim));
 
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            let search_width = (ui.available_width() * 0.45).clamp(140.0, 240.0);
+                            let search_width = (ui.available_width() * 0.35).clamp(100.0, 180.0);
                             let search = egui::TextEdit::singleline(search_query)
                                 .hint_text("🔍 Search...")
                                 .desired_width(search_width);
@@ -253,55 +251,68 @@ fn render_app_row(
     let (_, color_hex) = resolve_tag_info(app.tag_id, tags);
     let tag_color = parse_hex_color(&color_hex);
 
+    let avail_w = ui.available_width();
+    let stats_w = 165.0; // Fixed budget for stats (percentage + duration + progress bar)
+    let left_w = (avail_w - stats_w - ui.spacing().item_spacing.x).max(80.0);
+
     ui.horizontal(|ui| {
-        // Expand/collapse chevron
-        let chevron = if is_expanded { "▾" } else { "▸" };
-        if ui.button(RichText::new(chevron).size(13.0).color(theme.text_muted)).clicked() {
-            if is_expanded {
-                expanded_apps.remove(&app.name);
-            } else {
-                expanded_apps.insert(app.name.clone());
-            }
-        }
+        // Left Column: Chevron + Dot + App Name + Task Count (Strictly bounded)
+        ui.allocate_ui_with_layout(
+            Vec2::new(left_w, 22.0),
+            egui::Layout::left_to_right(egui::Align::Center),
+            |ui| {
+                let chevron = if is_expanded { "▾" } else { "▸" };
+                if ui.button(RichText::new(chevron).size(13.0).color(theme.text_muted)).clicked() {
+                    if is_expanded {
+                        expanded_apps.remove(&app.name);
+                    } else {
+                        expanded_apps.insert(app.name.clone());
+                    }
+                }
 
-        // Color indicator dot
-        let (dot, _) = ui.allocate_exact_size(Vec2::new(8.0, 8.0), egui::Sense::hover());
-        ui.painter().circle_filled(dot.center(), 4.0, tag_color);
+                let (dot, _) = ui.allocate_exact_size(Vec2::new(8.0, 8.0), egui::Sense::hover());
+                ui.painter().circle_filled(dot.center(), 4.0, tag_color);
 
-        // App Name (Clickable)
-        let name_btn = ui.add(
-            egui::Button::new(RichText::new(&app.name).size(13.0).strong().color(theme.text_primary))
-                .frame(false),
+                let max_chars = ((left_w - 70.0) / 7.5).max(10.0) as usize;
+                let display_name = truncate_sub(&app.name, max_chars);
+                let name_btn = ui.add(
+                    egui::Button::new(RichText::new(display_name).size(12.5).strong().color(theme.text_primary))
+                        .frame(false),
+                );
+                if name_btn.clicked() {
+                    if is_expanded {
+                        expanded_apps.remove(&app.name);
+                    } else {
+                        expanded_apps.insert(app.name.clone());
+                    }
+                }
+
+                if !app.sub_items.is_empty() {
+                    ui.label(RichText::new(format!("({} tasks)", app.sub_items.len())).size(10.5).color(theme.text_dim));
+                }
+            },
         );
-        if name_btn.clicked() {
-            if is_expanded {
-                expanded_apps.remove(&app.name);
-            } else {
-                expanded_apps.insert(app.name.clone());
-            }
-        }
 
-        if !app.sub_items.is_empty() {
-            ui.label(RichText::new(format!("({} tasks)", app.sub_items.len())).size(11.0).color(theme.text_dim));
-        }
+        // Right Column: Progress Bar + Percentage + Duration (Never clips)
+        ui.allocate_ui_with_layout(
+            Vec2::new(stats_w, 22.0),
+            egui::Layout::right_to_left(egui::Align::Center),
+            |ui| {
+                let dur_str = format_pt_time(app.total_seconds);
+                let pct_str = format!("{:>4.0}%", ratio * 100.0);
+                ui.label(RichText::new(format!("{}  {}", pct_str, dur_str)).size(11.0).monospace().color(theme.text_muted));
 
-        // Right side: Percentage, Duration, and Progress Bar
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            let dur_str = format_pt_time(app.total_seconds);
-            let pct_str = format!("{:>5.1}%", ratio * 100.0);
-            ui.label(RichText::new(format!("{}  {}", pct_str, dur_str)).size(11.5).monospace().color(theme.text_muted));
+                ui.add_space(6.0);
 
-            ui.add_space(8.0);
+                let bar_w = 55.0;
+                let (bar_rect, _) = ui.allocate_exact_size(Vec2::new(bar_w, 6.0), egui::Sense::hover());
+                ui.painter().rect_filled(bar_rect, Rounding::same(3.0), Color32::from_rgb(32, 36, 45));
 
-            // Responsive bar width
-            let bar_w = 90.0;
-            let (bar_rect, _) = ui.allocate_exact_size(Vec2::new(bar_w, 6.0), egui::Sense::hover());
-            ui.painter().rect_filled(bar_rect, Rounding::same(3.0), Color32::from_rgb(32, 36, 45));
-
-            let fill_w = (bar_w * ratio).max(2.0);
-            let fill_rect = Rect::from_min_size(bar_rect.min, Vec2::new(fill_w, bar_rect.height()));
-            ui.painter().rect_filled(fill_rect, Rounding::same(3.0), tag_color);
-        });
+                let fill_w = (bar_w * ratio).max(2.0);
+                let fill_rect = Rect::from_min_size(bar_rect.min, Vec2::new(fill_w, bar_rect.height()));
+                ui.painter().rect_filled(fill_rect, Rounding::same(3.0), tag_color);
+            },
+        );
     });
 
     // Sub-items drill down
@@ -310,15 +321,26 @@ fn render_app_row(
             let sub_ratio = (*sub_secs as f32 / app.total_seconds.max(1) as f32).clamp(0.0, 1.0);
 
             ui.horizontal(|ui| {
-                ui.add_space(28.0);
-                ui.label(RichText::new("•").size(10.0).color(theme.text_dim));
-                ui.label(RichText::new(truncate_sub(sub_title, 55)).size(11.5).color(theme.text_muted));
+                ui.allocate_ui_with_layout(
+                    Vec2::new(left_w, 20.0),
+                    egui::Layout::left_to_right(egui::Align::Center),
+                    |ui| {
+                        ui.add_space(24.0);
+                        ui.label(RichText::new("•").size(10.0).color(theme.text_dim));
+                        let max_sub_chars = ((left_w - 50.0) / 7.0).max(10.0) as usize;
+                        ui.label(RichText::new(truncate_sub(sub_title, max_sub_chars)).size(11.0).color(theme.text_muted));
+                    },
+                );
 
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    let sub_dur = format_pt_time(*sub_secs);
-                    let sub_pct = format!("{:>4.0}%", sub_ratio * 100.0);
-                    ui.label(RichText::new(format!("{}  {}", sub_pct, sub_dur)).size(11.0).monospace().color(theme.text_dim));
-                });
+                ui.allocate_ui_with_layout(
+                    Vec2::new(stats_w, 20.0),
+                    egui::Layout::right_to_left(egui::Align::Center),
+                    |ui| {
+                        let sub_dur = format_pt_time(*sub_secs);
+                        let sub_pct = format!("{:>4.0}%", sub_ratio * 100.0);
+                        ui.label(RichText::new(format!("{}  {}", sub_pct, sub_dur)).size(10.5).monospace().color(theme.text_dim));
+                    },
+                );
             });
         }
         ui.add_space(4.0);

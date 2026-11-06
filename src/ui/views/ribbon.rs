@@ -12,7 +12,6 @@ pub fn render_day_ribbon(
     day_start_ts: i64,
 ) {
     let theme = Theme::DARK;
-    let avail_width = ui.available_width();
     let ribbon_height = 26.0;
 
     let frame = egui::Frame::group(ui.style())
@@ -22,6 +21,8 @@ pub fn render_day_ribbon(
         .inner_margin(egui::Margin::symmetric(14.0, 10.0));
 
     frame.show(ui, |ui| {
+        ui.set_width(ui.available_width());
+
         ui.horizontal(|ui| {
             ui.label(RichText::new("DAY FLOW").size(10.5).strong().color(theme.text_dim));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -31,9 +32,10 @@ pub fn render_day_ribbon(
 
         ui.add_space(6.0);
 
-        // Ribbon Canvas
+        // Ribbon Canvas fills exact inner width
+        let ribbon_width = ui.available_width();
         let (rect, _response) =
-            ui.allocate_exact_size(Vec2::new(avail_width - 28.0, ribbon_height), egui::Sense::hover());
+            ui.allocate_exact_size(Vec2::new(ribbon_width, ribbon_height), egui::Sense::hover());
 
         let painter = ui.painter();
         // Background track
