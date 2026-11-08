@@ -46,10 +46,11 @@ fn main() -> eframe::Result {
 
     // 2. Shared State
     let state = Arc::new(SharedTrackerState::default());
+    let tracker_state = state.clone();
 
     // 3. Start Background Tracker Engine
     let tracker = TrackerEngine::new(state.clone(), db_path.clone());
-    let _tracker_handle = tracker.start_loop();
+    let tracker_handle = tracker.start_loop();
 
     // 4. Local server separated for now (focusing 100% on desktop app)
     // let server = HttpServer::new(state.clone(), db_path.clone(), 5577);
@@ -74,5 +75,10 @@ fn main() -> eframe::Result {
         }),
     );
     println!("eframe::run_native returned: {:?}", res);
+
+    // Clean shutdown: signal tracker loop to flush and exit
+    tracker_state.is_running.store(false, std::sync::atomic::Ordering::Relaxed);
+    let _ = tracker_handle.join();
+
     res
 }

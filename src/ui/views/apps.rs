@@ -1,7 +1,6 @@
 use crate::db::models::{ActivitySession, Tag};
 use crate::ui::theme::Theme;
-use crate::ui::views::timeline::parse_hex_color;
-use crate::ui::views::tree::format_pt_time;
+use crate::ui::views::common::{format_pt_time, parse_hex_color};
 use egui::{Color32, Rect, RichText, Rounding, ScrollArea, Stroke, Ui, Vec2};
 use std::collections::{BTreeMap, HashSet};
 
@@ -243,12 +242,12 @@ fn render_app_row(
     tags: &[Tag],
     total_active_sec: i64,
     expanded_apps: &mut HashSet<String>,
-    _on_tag_assigned: &mut Option<(String, i64)>,
+    on_tag_assigned: &mut Option<(String, i64)>,
 ) {
     let theme = Theme::DARK;
     let is_expanded = expanded_apps.contains(&app.name);
     let ratio = (app.total_seconds as f32 / total_active_sec.max(1) as f32).clamp(0.0, 1.0);
-    let (_, color_hex) = resolve_tag_info(app.tag_id, tags);
+    let (current_tag_name, color_hex) = resolve_tag_info(app.tag_id, tags);
     let tag_color = parse_hex_color(&color_hex);
 
     let avail_w = ui.available_width();
@@ -256,7 +255,7 @@ fn render_app_row(
     let left_w = (avail_w - stats_w - ui.spacing().item_spacing.x).max(80.0);
 
     ui.horizontal(|ui| {
-        // Left Column: Chevron + Dot + App Name + Task Count (Strictly bounded)
+        // Left Column: Chevron + Dot + App Name + Task Count + Tag Selector
         ui.allocate_ui_with_layout(
             Vec2::new(left_w, 22.0),
             egui::Layout::left_to_right(egui::Align::Center),
@@ -273,7 +272,7 @@ fn render_app_row(
                 let (dot, _) = ui.allocate_exact_size(Vec2::new(8.0, 8.0), egui::Sense::hover());
                 ui.painter().circle_filled(dot.center(), 4.0, tag_color);
 
-                let max_chars = ((left_w - 70.0) / 7.5).max(10.0) as usize;
+                let max_chars = ((left_w - 170.0) / 7.5).clamp(8.0, 30.0) as usize;
                 let display_name = truncate_sub(&app.name, max_chars);
                 let name_btn = ui.add(
                     egui::Button::new(RichText::new(display_name).size(12.5).strong().color(theme.text_primary))
@@ -290,6 +289,27 @@ fn render_app_row(
                 if !app.sub_items.is_empty() {
                     ui.label(RichText::new(format!("({} tasks)", app.sub_items.len())).size(10.5).color(theme.text_dim));
                 }
+
+                // Interactive Tag Selector ComboBox
+                egui::ComboBox::from_id_salt(format!("tag_sel_{}", app.name))
+                    .selected_text(
+                        RichText::new(&current_tag_name)
+                            .size(10.5)
+                            .color(tag_color),
+                    )
+                    .width(85.0)
+                    .show_ui(ui, |ui| {
+                        for t in tags {
+                            if let Some(tid) = t.id {
+                                let is_sel = app.tag_id == Some(tid);
+                                let col = parse_hex_color(&t.color);
+                                let lbl = RichText::new(&t.name).size(11.0).color(col);
+                                if ui.selectable_label(is_sel, lbl).clicked() {
+                                    *on_tag_assigned = Some((app.name.clone(), tid));
+                                }
+                            }
+                        }
+                    });
             },
         );
 

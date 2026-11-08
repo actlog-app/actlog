@@ -1,6 +1,6 @@
 use crate::db::models::DaySummary;
 use crate::ui::theme::Theme;
-use crate::ui::views::summary::format_duration;
+use crate::ui::views::common::format_duration;
 use egui::{Color32, RichText, Rounding, Stroke, Ui};
 
 pub fn render_headline_metrics(ui: &mut Ui, summary: Option<&DaySummary>) {

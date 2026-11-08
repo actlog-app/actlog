@@ -76,8 +76,9 @@ impl ActLogApp {
             .from_local_datetime(&self.selected_date.and_hms_opt(0, 0, 0).unwrap())
             .unwrap()
             .timestamp();
+        let next_date = self.selected_date.succ_opt().unwrap_or(self.selected_date);
         let e = Local
-            .from_local_datetime(&self.selected_date.and_hms_opt(23, 59, 59).unwrap())
+            .from_local_datetime(&next_date.and_hms_opt(0, 0, 0).unwrap())
             .unwrap()
             .timestamp();
         (s, e)
@@ -144,7 +145,15 @@ impl eframe::App for ActLogApp {
                 if let Ok(conn) = Connection::open(&self.db_path) {
                     let _ = conn.execute(
                         "UPDATE activities SET tag_id = ?1 WHERE app_name = ?2",
-                        (new_tag_id, app_name),
+                        (new_tag_id, &app_name),
+                    );
+                    let _ = conn.execute(
+                        "DELETE FROM rules WHERE pattern = ?1 AND match_field = 'app_name'",
+                        [&app_name],
+                    );
+                    let _ = conn.execute(
+                        "INSERT INTO rules (pattern, match_field, tag_id, priority) VALUES (?1, 'app_name', ?2, 20)",
+                        (&app_name, new_tag_id),
                     );
                 }
                 self.reload_data();

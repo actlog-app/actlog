@@ -2,6 +2,7 @@ use crate::tracker::engine::SharedTrackerState;
 use crate::ui::theme::Theme;
 use chrono::{Duration, Local, NaiveDate};
 use egui::{Color32, RichText, Rounding, Stroke, Ui, Vec2};
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 #[derive(PartialEq, Eq, Clone, Copy)]
@@ -14,11 +15,12 @@ pub fn render_header(
     ui: &mut Ui,
     selected_date: &mut NaiveDate,
     quick_range: &mut QuickRange,
-    _state: &Arc<SharedTrackerState>,
+    state: &Arc<SharedTrackerState>,
     on_date_changed: &mut bool,
 ) {
     let theme = Theme::DARK;
     let today = Local::now().date_naive();
+    let is_paused = state.is_tracking_paused.load(Ordering::Relaxed);
 
     ui.horizontal(|ui| {
         // App Brand & Version Badge
@@ -40,6 +42,31 @@ pub fn render_header(
                         .size(11.0)
                         .color(theme.accent),
                 );
+            });
+        });
+
+        ui.add_space(8.0);
+
+        // Live Tracker Status & Pause/Resume Control
+        let (status_text, status_color) = if is_paused {
+            ("⏸ Paused", Color32::from_rgb(245, 158, 11))
+        } else {
+            ("● Live", Color32::from_rgb(34, 197, 94))
+        };
+
+        let status_frame = egui::Frame::group(ui.style())
+            .fill(theme.surface)
+            .rounding(Rounding::same(6.0))
+            .stroke(Stroke::new(1.0, theme.border))
+            .inner_margin(egui::Margin::symmetric(8.0, 3.0));
+
+        status_frame.show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.label(RichText::new(status_text).size(11.5).strong().color(status_color));
+                let toggle_btn = if is_paused { "Resume" } else { "Pause" };
+                if ui.button(RichText::new(toggle_btn).size(11.0).color(theme.text_primary)).clicked() {
+                    state.is_tracking_paused.fetch_xor(true, Ordering::Relaxed);
+                }
             });
         });
 

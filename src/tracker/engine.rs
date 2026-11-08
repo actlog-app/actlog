@@ -15,6 +15,7 @@ pub struct SharedTrackerState {
     pub current_browser_tab: Mutex<Option<BrowserHeartbeat>>,
     pub current_activity: Mutex<Option<ActivitySession>>,
     pub is_tracking_paused: AtomicBool,
+    pub is_running: AtomicBool,
     pub bound_port: AtomicU16,
 }
 
@@ -24,6 +25,7 @@ impl Default for SharedTrackerState {
             current_browser_tab: Mutex::new(None),
             current_activity: Mutex::new(None),
             is_tracking_paused: AtomicBool::new(false),
+            is_running: AtomicBool::new(true),
             bound_port: AtomicU16::new(5577),
         }
     }
@@ -61,7 +63,15 @@ impl TrackerEngine {
             let mut active_session: Option<ActivitySession> = None;
 
             loop {
+                if !self.state.is_running.load(Ordering::Relaxed) {
+                    break;
+                }
+
                 thread::sleep(Duration::from_millis(1000));
+
+                if !self.state.is_running.load(Ordering::Relaxed) {
+                    break;
+                }
 
                 if self.state.is_tracking_paused.load(Ordering::Relaxed) {
                     continue;
@@ -77,22 +87,76 @@ impl TrackerEngine {
                     last_rule_reload = now_ts;
                 }
 
-                // 1. Poll Gamepad & Idle
-                let _gamepad_active = poll_gamepads();
+                // 1. Poll Gamepad, Idle & Fullscreen
+                let gamepad_active = poll_gamepads();
                 let mouse_kb_idle_ms = get_user_idle_ms();
-                let is_afk = mouse_kb_idle_ms > self.afk_threshold_ms;
+                let gamepad_idle_ms = if gamepad_active {
+                    0
+                } else {
+                    let last_gp = crate::tracker::gamepad::last_gamepad_activity_ms();
+                    if last_gp > 0 {
+                        #[cfg(windows)]
+                        {
+                            let now = unsafe { windows::Win32::System::SystemInformation::GetTickCount() as u64 };
+                            now.saturating_sub(last_gp)
+                        }
+                        #[cfg(not(windows))]
+                        {
+                            u64::MAX
+                        }
+                    } else {
+                        u64::MAX
+                    }
+                };
+
+                let effective_idle_ms = mouse_kb_idle_ms.min(gamepad_idle_ms);
+                let is_fullscreen = crate::tracker::window::is_foreground_fullscreen();
+                let is_afk = if is_fullscreen {
+                    false
+                } else {
+                    effective_idle_ms > self.afk_threshold_ms
+                };
 
                 // 2. Poll Foreground Window
                 let window_info = get_foreground_window();
                 let (app_name, exe_path, window_title) = match window_info {
                     Some(w) => {
                         if w.app_name.eq_ignore_ascii_case("actlog.exe") {
+                            // If coming from another app into ActLog, flush that app's session immediately
+                            if let Some(finished) = active_session.take() {
+                                let _ = Repository::save_or_merge_session(&conn, &finished);
+                            }
+                            {
+                                let mut lock = self.state.current_activity.lock().unwrap();
+                                *lock = None;
+                            }
                             continue;
                         }
                         (w.app_name, w.exe_path, w.window_title)
                     }
-                    None => continue,
+                    None => {
+                        if let Some(finished) = active_session.take() {
+                            let _ = Repository::save_or_merge_session(&conn, &finished);
+                        }
+                        {
+                            let mut lock = self.state.current_activity.lock().unwrap();
+                            *lock = None;
+                        }
+                        continue;
+                    }
                 };
+
+                // Cap single AFK session to 1 hour to prevent runaway overnight records
+                if is_afk {
+                    if let Some(ref current) = active_session {
+                        if current.is_afk && (now_ts - current.start_time) >= 3600 {
+                            if let Some(finished) = active_session.take() {
+                                let _ = Repository::save_or_merge_session(&conn, &finished);
+                            }
+                            continue;
+                        }
+                    }
+                }
 
                 // 3. Correlate browser info if foreground app is a browser
                 let is_browser = is_browser_app(&app_name);
@@ -116,7 +180,7 @@ impl TrackerEngine {
                     url: url.clone(),
                     domain: domain.clone(),
                     is_afk,
-                    gamepad_active: false,
+                    gamepad_active,
                 };
 
                 // 5. Categorize via Rule Engine
@@ -174,6 +238,11 @@ impl TrackerEngine {
                     let mut lock = self.state.current_activity.lock().unwrap();
                     *lock = active_session.clone();
                 }
+            }
+
+            // Flush active session on clean shutdown
+            if let Some(finished) = active_session.take() {
+                let _ = Repository::save_or_merge_session(&conn, &finished);
             }
         })
     }

@@ -1,7 +1,6 @@
 use crate::db::models::{ActivitySession, Tag};
 use crate::ui::theme::Theme;
-use crate::ui::views::summary::format_duration;
-use crate::ui::views::timeline::parse_hex_color;
+use crate::ui::views::common::{format_duration, resolve_tag_color};
 use chrono::{Local, TimeZone};
 use egui::{Color32, Pos2, Rect, RichText, Rounding, Stroke, Ui, Vec2};
 
@@ -106,13 +105,4 @@ pub fn render_day_ribbon(
             });
         }
     });
-}
-
-fn resolve_tag_color(tag_id: Option<i64>, tags: &[Tag]) -> Color32 {
-    if let Some(id) = tag_id {
-        if let Some(t) = tags.iter().find(|t| t.id == Some(id)) {
-            return parse_hex_color(&t.color);
-        }
-    }
-    Color32::from_rgb(100, 116, 139) // Default slate
 }

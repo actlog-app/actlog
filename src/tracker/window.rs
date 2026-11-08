@@ -121,6 +121,32 @@ pub mod win32 {
 
         ("unknown.exe".to_string(), None)
     }
+
+    pub fn is_foreground_fullscreen() -> bool {
+        unsafe {
+            let hwnd = GetForegroundWindow();
+            if hwnd.0.is_null() {
+                return false;
+            }
+            let hdesktop = windows::Win32::UI::WindowsAndMessaging::GetDesktopWindow();
+            let hshell = windows::Win32::UI::WindowsAndMessaging::GetShellWindow();
+            if hwnd == hdesktop || hwnd == hshell {
+                return false;
+            }
+            let mut fg_rect = windows::Win32::Foundation::RECT::default();
+            let mut desk_rect = windows::Win32::Foundation::RECT::default();
+            if windows::Win32::UI::WindowsAndMessaging::GetWindowRect(hwnd, &mut fg_rect).is_ok()
+                && windows::Win32::UI::WindowsAndMessaging::GetWindowRect(hdesktop, &mut desk_rect).is_ok()
+            {
+                fg_rect.bottom == desk_rect.bottom
+                    && fg_rect.top == desk_rect.top
+                    && fg_rect.left == desk_rect.left
+                    && fg_rect.right == desk_rect.right
+            } else {
+                false
+            }
+        }
+    }
 }
 
 #[cfg(not(windows))]
@@ -134,8 +160,16 @@ pub mod win32 {
             window_title: "Mock Window Title".to_string(),
         })
     }
+
+    pub fn is_foreground_fullscreen() -> bool {
+        false
+    }
 }
 
 pub fn get_foreground_window() -> Option<ActiveWindowInfo> {
     win32::get_active_window()
+}
+
+pub fn is_foreground_fullscreen() -> bool {
+    win32::is_foreground_fullscreen()
 }
