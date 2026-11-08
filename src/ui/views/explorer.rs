@@ -76,24 +76,40 @@ pub fn render_apps_and_categories(
                                 let color = parse_hex_color(&color_hex);
                                 let ratio = (secs as f32 / total_active_sec.max(1) as f32) * 100.0;
 
-                                ui.horizontal(|ui| {
-                                    let (chip, _) = ui.allocate_exact_size(Vec2::new(8.0, 8.0), egui::Sense::hover());
-                                    ui.painter().circle_filled(chip.center(), 4.0, color);
+                                let bg = if is_sel {
+                                    theme.surface_active
+                                } else {
+                                    Color32::TRANSPARENT
+                                };
 
-                                    let label = RichText::new(&cat_name).size(12.0);
-                                    if ui.selectable_label(is_sel, label).clicked() {
-                                        *selected_category = if is_sel { None } else { Some(cat_name.clone()) };
-                                    }
+                                let row_frame = egui::Frame::group(ui.style())
+                                    .fill(bg)
+                                    .stroke(Stroke::NONE)
+                                    .rounding(Rounding::same(5.0))
+                                    .inner_margin(egui::Margin::symmetric(6.0, 4.0));
 
-                                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                        ui.label(
-                                            RichText::new(format!("{:.0}%", ratio))
-                                                .size(11.0)
-                                                .monospace()
-                                                .color(theme.text_dim),
-                                        );
+                                let resp = row_frame.show(ui, |ui| {
+                                    ui.horizontal(|ui| {
+                                        let (chip, _) = ui.allocate_exact_size(Vec2::new(8.0, 8.0), egui::Sense::hover());
+                                        ui.painter().circle_filled(chip.center(), 4.0, color);
+
+                                        let text_color = if is_sel { Color32::WHITE } else { theme.text_primary };
+                                        ui.label(RichText::new(&cat_name).size(12.0).color(text_color));
+
+                                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                            ui.label(
+                                                RichText::new(format!("{:.0}%", ratio))
+                                                    .size(11.0)
+                                                    .monospace()
+                                                    .color(if is_sel { theme.text_muted } else { theme.text_dim }),
+                                            );
+                                        });
                                     });
-                                });
+                                }).response.interact(egui::Sense::click());
+
+                                if resp.clicked() {
+                                    *selected_category = if is_sel { None } else { Some(cat_name.clone()) };
+                                }
                             }
                         });
                 });
@@ -142,7 +158,12 @@ pub fn render_apps_and_categories(
                             if app_groups.is_empty() {
                                 ui.add_space(30.0);
                                 ui.vertical_centered(|ui| {
-                                    ui.label(RichText::new("No activities match search or selected category.").color(theme.text_dim).size(12.5));
+                                    let msg = if activities.is_empty() {
+                                        "No activity recorded on this date."
+                                    } else {
+                                        "No activities match current search or category filter."
+                                    };
+                                    ui.label(RichText::new(msg).color(theme.text_dim).size(12.5));
                                 });
                             } else {
                                 for app in app_groups {
@@ -250,16 +271,48 @@ fn render_app_row(
     let (current_tag_name, color_hex) = resolve_tag_info(app.tag_id, tags);
     let tag_color = parse_hex_color(&color_hex);
 
-    let avail_w = ui.available_width();
-    let stats_w = 165.0; // Fixed budget for stats (percentage + duration + progress bar)
-    let left_w = (avail_w - stats_w - ui.spacing().item_spacing.x).max(80.0);
-
     ui.horizontal(|ui| {
-        // Left Column: Chevron + Dot + App Name + Task Count + Tag Selector
-        ui.allocate_ui_with_layout(
-            Vec2::new(left_w, 22.0),
-            egui::Layout::left_to_right(egui::Align::Center),
-            |ui| {
+        // 1. Right side elements (fixed / right-aligned): Duration + Pct + Progress Bar + Tag Combobox
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            let dur_str = format_pt_time(app.total_seconds);
+            let pct_str = format!("{:>4.0}%", ratio * 100.0);
+            ui.label(RichText::new(format!("{}  {}", pct_str, dur_str)).size(11.0).monospace().color(theme.text_muted));
+
+            ui.add_space(6.0);
+
+            let bar_w = 55.0;
+            let (bar_rect, _) = ui.allocate_exact_size(Vec2::new(bar_w, 6.0), egui::Sense::hover());
+            ui.painter().rect_filled(bar_rect, Rounding::same(3.0), Color32::from_rgb(32, 36, 45));
+
+            let fill_w = (bar_w * ratio).max(2.0);
+            let fill_rect = Rect::from_min_size(bar_rect.min, Vec2::new(fill_w, bar_rect.height()));
+            ui.painter().rect_filled(fill_rect, Rounding::same(3.0), tag_color);
+
+            ui.add_space(8.0);
+
+            // Interactive Tag Selector ComboBox
+            egui::ComboBox::from_id_salt(format!("tag_sel_{}", app.name))
+                .selected_text(
+                    RichText::new(&current_tag_name)
+                        .size(10.5)
+                        .color(tag_color),
+                )
+                .width(80.0)
+                .show_ui(ui, |ui| {
+                    for t in tags {
+                        if let Some(tid) = t.id {
+                            let is_sel = app.tag_id == Some(tid);
+                            let col = parse_hex_color(&t.color);
+                            let lbl = RichText::new(&t.name).size(11.0).color(col);
+                            if ui.selectable_label(is_sel, lbl).clicked() {
+                                *on_tag_assigned = Some((app.name.clone(), tid));
+                            }
+                        }
+                    }
+                });
+
+            // 2. Left side fills remaining width: Chevron + Dot + App Name + Task Count
+            ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
                 let chevron = if is_expanded { "▾" } else { "▸" };
                 if ui.button(RichText::new(chevron).size(13.0).color(theme.text_muted)).clicked() {
                     if is_expanded {
@@ -272,10 +325,9 @@ fn render_app_row(
                 let (dot, _) = ui.allocate_exact_size(Vec2::new(8.0, 8.0), egui::Sense::hover());
                 ui.painter().circle_filled(dot.center(), 4.0, tag_color);
 
-                let max_chars = ((left_w - 170.0) / 7.5).clamp(8.0, 30.0) as usize;
-                let display_name = truncate_sub(&app.name, max_chars);
                 let name_btn = ui.add(
-                    egui::Button::new(RichText::new(display_name).size(12.5).strong().color(theme.text_primary))
+                    egui::Button::new(RichText::new(&app.name).size(12.5).strong().color(theme.text_primary))
+                        .truncate()
                         .frame(false),
                 );
                 if name_btn.clicked() {
@@ -289,50 +341,8 @@ fn render_app_row(
                 if !app.sub_items.is_empty() {
                     ui.label(RichText::new(format!("({} tasks)", app.sub_items.len())).size(10.5).color(theme.text_dim));
                 }
-
-                // Interactive Tag Selector ComboBox
-                egui::ComboBox::from_id_salt(format!("tag_sel_{}", app.name))
-                    .selected_text(
-                        RichText::new(&current_tag_name)
-                            .size(10.5)
-                            .color(tag_color),
-                    )
-                    .width(85.0)
-                    .show_ui(ui, |ui| {
-                        for t in tags {
-                            if let Some(tid) = t.id {
-                                let is_sel = app.tag_id == Some(tid);
-                                let col = parse_hex_color(&t.color);
-                                let lbl = RichText::new(&t.name).size(11.0).color(col);
-                                if ui.selectable_label(is_sel, lbl).clicked() {
-                                    *on_tag_assigned = Some((app.name.clone(), tid));
-                                }
-                            }
-                        }
-                    });
-            },
-        );
-
-        // Right Column: Progress Bar + Percentage + Duration (Never clips)
-        ui.allocate_ui_with_layout(
-            Vec2::new(stats_w, 22.0),
-            egui::Layout::right_to_left(egui::Align::Center),
-            |ui| {
-                let dur_str = format_pt_time(app.total_seconds);
-                let pct_str = format!("{:>4.0}%", ratio * 100.0);
-                ui.label(RichText::new(format!("{}  {}", pct_str, dur_str)).size(11.0).monospace().color(theme.text_muted));
-
-                ui.add_space(6.0);
-
-                let bar_w = 55.0;
-                let (bar_rect, _) = ui.allocate_exact_size(Vec2::new(bar_w, 6.0), egui::Sense::hover());
-                ui.painter().rect_filled(bar_rect, Rounding::same(3.0), Color32::from_rgb(32, 36, 45));
-
-                let fill_w = (bar_w * ratio).max(2.0);
-                let fill_rect = Rect::from_min_size(bar_rect.min, Vec2::new(fill_w, bar_rect.height()));
-                ui.painter().rect_filled(fill_rect, Rounding::same(3.0), tag_color);
-            },
-        );
+            });
+        });
     });
 
     // Sub-items drill down
@@ -341,26 +351,17 @@ fn render_app_row(
             let sub_ratio = (*sub_secs as f32 / app.total_seconds.max(1) as f32).clamp(0.0, 1.0);
 
             ui.horizontal(|ui| {
-                ui.allocate_ui_with_layout(
-                    Vec2::new(left_w, 20.0),
-                    egui::Layout::left_to_right(egui::Align::Center),
-                    |ui| {
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    let sub_dur = format_pt_time(*sub_secs);
+                    let sub_pct = format!("{:>4.0}%", sub_ratio * 100.0);
+                    ui.label(RichText::new(format!("{}  {}", sub_pct, sub_dur)).size(10.5).monospace().color(theme.text_dim));
+
+                    ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
                         ui.add_space(24.0);
                         ui.label(RichText::new("•").size(10.0).color(theme.text_dim));
-                        let max_sub_chars = ((left_w - 50.0) / 7.0).max(10.0) as usize;
-                        ui.label(RichText::new(truncate_sub(sub_title, max_sub_chars)).size(11.0).color(theme.text_muted));
-                    },
-                );
-
-                ui.allocate_ui_with_layout(
-                    Vec2::new(stats_w, 20.0),
-                    egui::Layout::right_to_left(egui::Align::Center),
-                    |ui| {
-                        let sub_dur = format_pt_time(*sub_secs);
-                        let sub_pct = format!("{:>4.0}%", sub_ratio * 100.0);
-                        ui.label(RichText::new(format!("{}  {}", sub_pct, sub_dur)).size(10.5).monospace().color(theme.text_dim));
-                    },
-                );
+                        ui.add(egui::Label::new(RichText::new(sub_title).size(11.0).color(theme.text_muted)).truncate());
+                    });
+                });
             });
         }
         ui.add_space(4.0);
@@ -375,14 +376,4 @@ fn resolve_tag_info(tag_id: Option<i64>, tags: &[Tag]) -> (String, String) {
         }
     }
     ("UNTAGGED".to_string(), "#64748B".to_string())
-}
-
-fn truncate_sub(s: &str, max: usize) -> String {
-    if s.chars().count() > max {
-        let mut t: String = s.chars().take(max).collect();
-        t.push('…');
-        t
-    } else {
-        s.to_string()
-    }
 }

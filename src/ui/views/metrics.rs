@@ -34,7 +34,14 @@ pub fn render_headline_metrics(ui: &mut Ui, summary: Option<&DaySummary>) {
             ui.add_space(2.0);
             ui.label(RichText::new(format_duration(active_sec)).size(24.0).strong().color(theme.text_primary));
             ui.add_space(4.0);
-            ui.label(RichText::new(format!("Top Application: {}", top_app)).size(11.0).color(theme.text_muted));
+            let top_display = if top_app.chars().count() > 38 {
+                let mut s: String = top_app.chars().take(37).collect();
+                s.push('…');
+                s
+            } else {
+                top_app
+            };
+            ui.label(RichText::new(format!("Top Application: {}", top_display)).size(11.0).color(theme.text_muted));
         });
 
         // Card 2: Away / Idle Time
@@ -51,7 +58,7 @@ pub fn render_headline_metrics(ui: &mut Ui, summary: Option<&DaySummary>) {
             ui.label(RichText::new(format_duration(afk_sec)).size(24.0).strong().color(Color32::from_rgb(255, 152, 0)));
             ui.add_space(4.0);
             let total_str = format_duration(total);
-            ui.label(RichText::new(format!("Total Elapsed Today: {}", total_str)).size(11.0).color(theme.text_muted));
+            ui.label(RichText::new(format!("Total Recorded: {}", total_str)).size(11.0).color(theme.text_muted));
         });
     });
 }

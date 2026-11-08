@@ -3,7 +3,7 @@ use crate::db::repository::Repository;
 use crate::tracker::SharedTrackerState;
 use crate::ui::theme::configure_impeccable_theme;
 use crate::ui::views::explorer::render_apps_and_categories;
-use crate::ui::views::header::{render_header, QuickRange};
+use crate::ui::views::header::render_header;
 use crate::ui::views::metrics::render_headline_metrics;
 use crate::ui::views::ribbon::render_day_ribbon;
 use chrono::{Local, NaiveDate, TimeZone};
@@ -20,7 +20,6 @@ pub struct ActLogApp {
 
     // Header State
     selected_date: NaiveDate,
-    quick_range: QuickRange,
 
     // Filter & Search State
     selected_category: Option<String>,
@@ -42,7 +41,6 @@ impl ActLogApp {
             state,
             db_path,
             selected_date: today,
-            quick_range: QuickRange::Today,
             selected_category: None,
             search_query: String::new(),
             expanded_apps: HashSet::new(),
@@ -105,7 +103,6 @@ impl eframe::App for ActLogApp {
             render_header(
                 ui,
                 &mut self.selected_date,
-                &mut self.quick_range,
                 &self.state,
                 &mut date_changed,
             );
@@ -144,11 +141,11 @@ impl eframe::App for ActLogApp {
             if let Some((app_name, new_tag_id)) = tag_assigned {
                 if let Ok(conn) = Connection::open(&self.db_path) {
                     let _ = conn.execute(
-                        "UPDATE activities SET tag_id = ?1 WHERE app_name = ?2",
+                        "UPDATE activities SET tag_id = ?1 WHERE LOWER(app_name) = LOWER(?2)",
                         (new_tag_id, &app_name),
                     );
                     let _ = conn.execute(
-                        "DELETE FROM rules WHERE pattern = ?1 AND match_field = 'app_name'",
+                        "DELETE FROM rules WHERE LOWER(pattern) = LOWER(?1) AND match_field = 'app_name'",
                         [&app_name],
                     );
                     let _ = conn.execute(

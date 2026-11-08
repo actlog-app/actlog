@@ -5,16 +5,9 @@ use egui::{Color32, RichText, Rounding, Stroke, Ui, Vec2};
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
-#[derive(PartialEq, Eq, Clone, Copy)]
-pub enum QuickRange {
-    Today,
-    Yesterday,
-}
-
 pub fn render_header(
     ui: &mut Ui,
     selected_date: &mut NaiveDate,
-    quick_range: &mut QuickRange,
     state: &Arc<SharedTrackerState>,
     on_date_changed: &mut bool,
 ) {
@@ -47,7 +40,7 @@ pub fn render_header(
 
         ui.add_space(8.0);
 
-        // Live Tracker Status & Pause/Resume Control
+        // Live Tracker Status & Seamless Pause/Resume Control
         let (status_text, status_color) = if is_paused {
             ("⏸ Paused", Color32::from_rgb(245, 158, 11))
         } else {
@@ -63,8 +56,13 @@ pub fn render_header(
         status_frame.show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.label(RichText::new(status_text).size(11.5).strong().color(status_color));
-                let toggle_btn = if is_paused { "Resume" } else { "Pause" };
-                if ui.button(RichText::new(toggle_btn).size(11.0).color(theme.text_primary)).clicked() {
+                ui.add_space(2.0);
+                let toggle_label = if is_paused { "Resume" } else { "Pause" };
+                let toggle_btn = ui.add(
+                    egui::Button::new(RichText::new(toggle_label).size(11.0).color(theme.text_muted))
+                        .frame(false),
+                );
+                if toggle_btn.clicked() {
                     state.is_tracking_paused.fetch_xor(true, Ordering::Relaxed);
                 }
             });
@@ -72,7 +70,8 @@ pub fn render_header(
 
         ui.add_space(8.0);
 
-        // Date Navigator (◀ [Today, Nov 04] ▶)
+        // Date Navigator (◀ [Today, Nov 08] ▶) with bounded future navigation
+        let can_go_forward = *selected_date < today;
         let frame = egui::Frame::group(ui.style())
             .fill(theme.surface)
             .rounding(Rounding::same(6.0))
@@ -80,7 +79,11 @@ pub fn render_header(
             .inner_margin(egui::Margin::symmetric(8.0, 4.0));
 
         frame.show(ui, |ui| {
-            if ui.button(RichText::new("◀").size(12.0).color(theme.text_muted)).clicked() {
+            let back_btn = ui.add(
+                egui::Button::new(RichText::new("◀").size(12.0).color(theme.text_muted))
+                    .frame(false),
+            );
+            if back_btn.clicked() {
                 *selected_date -= Duration::days(1);
                 *on_date_changed = true;
             }
@@ -95,7 +98,12 @@ pub fn render_header(
 
             ui.label(RichText::new(label).strong().size(13.0).color(theme.text_primary));
 
-            if ui.button(RichText::new("▶").size(12.0).color(theme.text_muted)).clicked() {
+            let fwd_color = if can_go_forward { theme.text_muted } else { theme.border };
+            let fwd_btn = ui.add_enabled(
+                can_go_forward,
+                egui::Button::new(RichText::new("▶").size(12.0).color(fwd_color)).frame(false),
+            );
+            if fwd_btn.clicked() {
                 *selected_date += Duration::days(1);
                 *on_date_changed = true;
             }
@@ -103,19 +111,14 @@ pub fn render_header(
 
         ui.add_space(8.0);
 
-        // Functional Quick Range Chips: Today & Yesterday
-        let ranges = [
-            (QuickRange::Today, "Today"),
-            (QuickRange::Yesterday, "Yesterday"),
+        // Quick Date Chips: Today & Yesterday (dynamically derived from selected_date)
+        let chips = [
+            ("Today", today),
+            ("Yesterday", today - Duration::days(1)),
         ];
 
-        for (r, name) in ranges {
-            let is_sel = if r == QuickRange::Today {
-                *selected_date == today
-            } else {
-                *selected_date == today - Duration::days(1)
-            };
-
+        for (name, chip_date) in chips {
+            let is_sel = *selected_date == chip_date;
             let bg = if is_sel { theme.accent } else { theme.surface };
             let fg = if is_sel { Color32::WHITE } else { theme.text_muted };
 
@@ -127,11 +130,7 @@ pub fn render_header(
             );
 
             if btn.clicked() {
-                *quick_range = r;
-                match r {
-                    QuickRange::Today => *selected_date = today,
-                    QuickRange::Yesterday => *selected_date = today - Duration::days(1),
-                }
+                *selected_date = chip_date;
                 *on_date_changed = true;
             }
         }
