@@ -1,6 +1,6 @@
-use actlog::db::models::ActivitySession;
+use actlog::model::ActivitySession;
 use actlog::server::handlers::ApiHandler;
-use actlog::tracker::engine::SharedTrackerState;
+use actlog::tracker::SharedTrackerState;
 use std::sync::Arc;
 
 #[test]

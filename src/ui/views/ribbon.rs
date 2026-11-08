@@ -1,6 +1,6 @@
-use crate::db::models::{ActivitySession, Tag};
+use crate::model::{ActivitySession, Tag};
+use crate::ui::common::{format_duration, resolve_tag_color};
 use crate::ui::theme::Theme;
-use crate::ui::views::common::{format_duration, resolve_tag_color};
 use chrono::{Local, TimeZone};
 use egui::{Color32, Pos2, Rect, RichText, Rounding, Stroke, Ui, Vec2};
 

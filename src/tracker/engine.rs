@@ -1,35 +1,17 @@
-use crate::db::models::{ActivitySession, BrowserHeartbeat, RawTick};
 use crate::db::repository::Repository;
-use crate::tracker::gamepad::poll_gamepads;
-use crate::tracker::idle::get_user_idle_ms;
+use crate::model::{ActivitySession, RawTick};
+use crate::platform::{
+    get_foreground_window, get_user_idle_ms, is_foreground_fullscreen, last_gamepad_activity_ms,
+    poll_gamepads,
+};
 use crate::tracker::rules::RuleEngine;
-use crate::tracker::window::get_foreground_window;
+use crate::tracker::state::SharedTrackerState;
 use chrono::Utc;
 use rusqlite::Connection;
-use std::sync::atomic::{AtomicBool, AtomicU16, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::atomic::Ordering;
+use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
-
-pub struct SharedTrackerState {
-    pub current_browser_tab: Mutex<Option<BrowserHeartbeat>>,
-    pub current_activity: Mutex<Option<ActivitySession>>,
-    pub is_tracking_paused: AtomicBool,
-    pub is_running: AtomicBool,
-    pub bound_port: AtomicU16,
-}
-
-impl Default for SharedTrackerState {
-    fn default() -> Self {
-        Self {
-            current_browser_tab: Mutex::new(None),
-            current_activity: Mutex::new(None),
-            is_tracking_paused: AtomicBool::new(false),
-            is_running: AtomicBool::new(true),
-            bound_port: AtomicU16::new(5577),
-        }
-    }
-}
 
 pub struct TrackerEngine {
     state: Arc<SharedTrackerState>,
@@ -93,7 +75,7 @@ impl TrackerEngine {
                 let gamepad_idle_ms = if gamepad_active {
                     0
                 } else {
-                    let last_gp = crate::tracker::gamepad::last_gamepad_activity_ms();
+                    let last_gp = last_gamepad_activity_ms();
                     if last_gp > 0 {
                         #[cfg(windows)]
                         {
@@ -110,7 +92,7 @@ impl TrackerEngine {
                 };
 
                 let effective_idle_ms = mouse_kb_idle_ms.min(gamepad_idle_ms);
-                let is_fullscreen = crate::tracker::window::is_foreground_fullscreen();
+                let is_fullscreen = is_foreground_fullscreen();
                 let is_afk = if is_fullscreen {
                     false
                 } else {

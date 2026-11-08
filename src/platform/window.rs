@@ -16,8 +16,8 @@ pub mod win32 {
         PROCESS_QUERY_LIMITED_INFORMATION,
     };
     use windows::Win32::UI::WindowsAndMessaging::{
-        EnumChildWindows, GetForegroundWindow, GetWindowTextLengthW, GetWindowTextW,
-        GetWindowThreadProcessId,
+        EnumChildWindows, GetDesktopWindow, GetForegroundWindow, GetShellWindow, GetWindowRect,
+        GetWindowTextLengthW, GetWindowTextW, GetWindowThreadProcessId,
     };
 
     struct ProcIds {
@@ -128,15 +128,15 @@ pub mod win32 {
             if hwnd.0.is_null() {
                 return false;
             }
-            let hdesktop = windows::Win32::UI::WindowsAndMessaging::GetDesktopWindow();
-            let hshell = windows::Win32::UI::WindowsAndMessaging::GetShellWindow();
+            let hdesktop = GetDesktopWindow();
+            let hshell = GetShellWindow();
             if hwnd == hdesktop || hwnd == hshell {
                 return false;
             }
             let mut fg_rect = windows::Win32::Foundation::RECT::default();
             let mut desk_rect = windows::Win32::Foundation::RECT::default();
-            if windows::Win32::UI::WindowsAndMessaging::GetWindowRect(hwnd, &mut fg_rect).is_ok()
-                && windows::Win32::UI::WindowsAndMessaging::GetWindowRect(hdesktop, &mut desk_rect).is_ok()
+            if GetWindowRect(hwnd, &mut fg_rect).is_ok()
+                && GetWindowRect(hdesktop, &mut desk_rect).is_ok()
             {
                 fg_rect.bottom == desk_rect.bottom
                     && fg_rect.top == desk_rect.top

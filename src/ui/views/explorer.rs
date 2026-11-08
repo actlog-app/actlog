@@ -1,6 +1,6 @@
-use crate::db::models::{ActivitySession, Tag};
+use crate::model::{ActivitySession, Tag};
+use crate::ui::common::{format_pt_time, parse_hex_color};
 use crate::ui::theme::Theme;
-use crate::ui::views::common::{format_pt_time, parse_hex_color};
 use egui::{Color32, Rect, RichText, Rounding, ScrollArea, Stroke, Ui, Vec2};
 use std::collections::{BTreeMap, HashSet};
 

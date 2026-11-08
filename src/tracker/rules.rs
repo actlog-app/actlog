@@ -1,4 +1,4 @@
-use crate::db::models::{MatchField, RawTick, Rule};
+use crate::model::{MatchField, RawTick, Rule};
 use regex::Regex;
 
 pub struct RuleEngine;

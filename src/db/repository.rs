@@ -1,4 +1,4 @@
-use crate::db::models::{ActivitySession, AppTotal, CategoryTotal, DaySummary, MatchField, Rule, Tag};
+use crate::model::{ActivitySession, AppTotal, CategoryTotal, DaySummary, MatchField, Rule, Tag};
 use rusqlite::{params, Connection, OptionalExtension, Result};
 
 pub struct Repository;

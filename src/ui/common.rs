@@ -1,4 +1,4 @@
-use crate::db::models::Tag;
+use crate::model::Tag;
 use egui::Color32;
 
 pub fn format_duration(seconds: i64) -> String {

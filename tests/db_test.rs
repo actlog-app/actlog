@@ -1,4 +1,4 @@
-use actlog::db::models::{ActivitySession, MatchField};
+use actlog::model::{ActivitySession, MatchField};
 use actlog::db::repository::Repository;
 use actlog::db::schema::init_database;
 use rusqlite::Connection;

@@ -1,8 +1,8 @@
-use actlog::db::models::MatchField;
 use actlog::db::repository::Repository;
 use actlog::db::schema::init_database;
-use actlog::tracker::engine::SharedTrackerState;
-use actlog::tracker::window::is_foreground_fullscreen;
+use actlog::model::MatchField;
+use actlog::platform::is_foreground_fullscreen;
+use actlog::tracker::SharedTrackerState;
 use rusqlite::Connection;
 use std::sync::atomic::Ordering;
 

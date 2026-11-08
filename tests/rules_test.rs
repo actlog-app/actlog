@@ -1,4 +1,4 @@
-use actlog::db::models::{MatchField, RawTick, Rule};
+use actlog::model::{MatchField, RawTick, Rule};
 use actlog::tracker::rules::RuleEngine;
 
 #[test]

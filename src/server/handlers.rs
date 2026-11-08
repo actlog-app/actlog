@@ -1,6 +1,6 @@
-use crate::db::models::BrowserHeartbeat;
 use crate::db::repository::Repository;
-use crate::tracker::engine::SharedTrackerState;
+use crate::model::BrowserHeartbeat;
+use crate::tracker::SharedTrackerState;
 use chrono::{Local, NaiveDate, TimeZone};
 use rusqlite::Connection;
 use std::sync::Arc;

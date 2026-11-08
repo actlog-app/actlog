@@ -1,8 +1,8 @@
-use crate::db::models::{ActivitySession, DaySummary, Tag};
+use crate::model::{ActivitySession, DaySummary, Tag};
 use crate::db::repository::Repository;
-use crate::tracker::engine::SharedTrackerState;
+use crate::tracker::SharedTrackerState;
 use crate::ui::theme::configure_impeccable_theme;
-use crate::ui::views::apps::render_apps_and_categories;
+use crate::ui::views::explorer::render_apps_and_categories;
 use crate::ui::views::header::{render_header, QuickRange};
 use crate::ui::views::metrics::render_headline_metrics;
 use crate::ui::views::ribbon::render_day_ribbon;
