@@ -1,8 +1,6 @@
 use actlog::db::schema::init_database;
-// use actlog::server::http::HttpServer;
 use actlog::tracker::{SharedTrackerState, TrackerEngine};
 use actlog::ui::app::ActLogApp;
-use eframe::egui;
 use rusqlite::Connection;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -27,7 +25,7 @@ fn resolve_db_path() -> String {
     "actlog.db".to_string()
 }
 
-fn main() -> eframe::Result {
+fn main() -> iced::Result {
     #[cfg(windows)]
     unsafe {
         use windows::Win32::UI::HiDpi::*;
@@ -65,31 +63,24 @@ fn main() -> eframe::Result {
     let tracker = TrackerEngine::new(state.clone(), db_path.clone());
     let tracker_handle = tracker.start_loop();
 
-    // 4. Local server separated for now (focusing 100% on desktop app)
-    // let server = HttpServer::new(state.clone(), db_path.clone(), 5577);
-    // let _server_handle = server.start();
+    // 4. Mount Desktop Window UI via Iced
+    let state_for_app = state.clone();
+    let db_path_for_app = db_path.clone();
 
-    // 5. Mount Desktop Window UI (Modern Focus Dashboard)
-    let native_options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default()
-            .with_inner_size([1024.0, 560.0])
-            .with_min_inner_size([750.0, 450.0])
-            .with_title("PT Statistics View"),
-        ..Default::default()
-    };
+    let app = iced::application(
+        move || ActLogApp::new(state_for_app.clone(), db_path_for_app.clone(), screenshot_path.clone()),
+        ActLogApp::update,
+        ActLogApp::view,
+    )
+    .title("PT Statistics View")
+    .default_font(iced::Font::with_name("Segoe UI"))
+    .window_size(iced::Size::new(1024.0, 560.0))
+    .subscription(ActLogApp::subscription)
+    .theme(ActLogApp::theme);
 
-    println!("Starting eframe window...");
-    let res = eframe::run_native(
-        "ActLog",
-        native_options,
-        Box::new(move |_cc| {
-            println!("eframe app setup callback running!");
-            Ok(Box::new(ActLogApp::new(state, db_path, screenshot_path)))
-        }),
-    );
-    println!("eframe::run_native returned: {:?}", res);
+    let res = app.run();
 
-    // Clean shutdown: signal tracker loop to flush and exit
+    // 5. Clean shutdown
     tracker_state.is_running.store(false, std::sync::atomic::Ordering::Relaxed);
     let _ = tracker_handle.join();
 

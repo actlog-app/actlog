@@ -1,8 +1,10 @@
 use crate::model::{ActivitySession, Tag};
 use crate::ui::common::{format_pt_time, resolve_tag_color};
-use crate::ui::theme::Theme;
-use chrono::{DateTime, Datelike, Local, NaiveDate};
-use egui::{Color32, Pos2, Rect, Rounding, Stroke, Ui, Vec2};
+use crate::ui::theme::Win32Theme;
+use chrono::{DateTime, Local, NaiveDate};
+use iced::mouse;
+use iced::widget::canvas::{self, Frame, Geometry, Path, Program};
+use iced::{Point, Rectangle, Renderer, Size};
 use std::collections::BTreeMap;
 
 #[derive(Clone, Debug)]
@@ -55,86 +57,127 @@ impl DayStat {
     }
 }
 
-pub fn render_day_minimap(
-    ui: &mut Ui,
-    active_days: &[DayStat],
-    tags: &[Tag],
-    hover_status: &mut Option<String>,
-) {
-    let theme = Theme::WIN32;
-    let width = (ui.available_width() - 2.0).clamp(80.0, 100.0);
-    let avail_height = ui.available_height().max(100.0);
+pub struct DayMinimapCanvas<'a, Message> {
+    pub active_days: &'a [DayStat],
+    pub tags: &'a [Tag],
+    pub on_hover: Box<dyn Fn(Option<String>) -> Message + 'a>,
+}
 
-    let biggest_total = active_days
-        .iter()
-        .map(|d| d.total_seconds)
-        .max()
-        .unwrap_or(0);
+impl<'a, Message: Clone + 'static> Program<Message> for DayMinimapCanvas<'a, Message> {
+    type State = Option<usize>;
 
-    // 3. Allocate full-height canvas painter
-    let (response, painter) =
-        ui.allocate_painter(Vec2::new(width, avail_height), egui::Sense::hover());
-    let canvas_rect = response.rect;
+    fn draw(
+        &self,
+        _state: &Self::State,
+        renderer: &Renderer,
+        _theme: &iced::Theme,
+        bounds: Rectangle,
+        _cursor: mouse::Cursor,
+    ) -> Vec<Geometry> {
+        let mut frame = Frame::new(renderer, bounds.size());
+        let bg = Path::rectangle(Point::ORIGIN, bounds.size());
+        frame.fill(&bg, Win32Theme::WHITE_PANEL);
 
-    // Pure white background (#FFFFFF) with 1px border (#7A7A7A)
-    painter.rect_filled(canvas_rect, Rounding::ZERO, Color32::from_rgb(255, 255, 255));
-    painter.rect_stroke(
-        canvas_rect,
-        Rounding::ZERO,
-        Stroke::new(1.0, theme.control_border),
-    );
+        let num_days = self.active_days.len();
+        let biggest_total = self
+            .active_days
+            .iter()
+            .map(|d| d.total_seconds)
+            .max()
+            .unwrap_or(0);
 
-    let inner_rect = canvas_rect.shrink(1.0);
-    let num_days = active_days.len();
+        if num_days > 0 && biggest_total > 0 {
+            let inner_w = (bounds.width - 2.0).max(1.0);
+            let inner_h = (bounds.height - 2.0).max(1.0);
+            let mut bar_h = (inner_h / num_days as f32).floor();
+            if bar_h < 1.0 {
+                bar_h = 1.0;
+            }
+            if bar_h > 20.0 {
+                bar_h = 20.0;
+            }
 
-    *hover_status = None;
+            for (i, day) in self.active_days.iter().enumerate() {
+                let y = 1.0 + (i as f32) * bar_h;
+                if y + bar_h > bounds.height - 1.0 {
+                    break;
+                }
 
-    if num_days > 0 && biggest_total > 0 {
-        let mut bar_h = (inner_rect.height() / num_days as f32).floor();
-        if bar_h < 1.0 {
-            bar_h = 1.0;
-        }
-        if bar_h > 20.0 {
-            bar_h = 20.0;
-        }
-        let bar_w = inner_rect.width();
+                let total_ratio = (day.total_seconds as f32 / biggest_total as f32).clamp(0.0, 1.0);
+                let day_bar_w = (inner_w * total_ratio).max(1.0);
 
-        for (i, day) in active_days.iter().enumerate() {
-            let y_top = inner_rect.top() + (i as f32) * bar_h;
-            let y_bottom = (y_top + bar_h).min(inner_rect.bottom());
-            let mut bstart = inner_rect.left();
-
-            // Stacked tag segments (1:1 with PT renderdaystat loop(j, MAXTAGS))
-            for (&tid, &sec) in &day.tag_breakdown {
-                let seg_w = ((sec as f32 / biggest_total as f32) * bar_w).max(1.0);
-                let next_x = (bstart + seg_w).min(inner_rect.right());
-                if next_x > bstart {
-                    let seg_rect =
-                        Rect::from_min_max(Pos2::new(bstart, y_top), Pos2::new(next_x, y_bottom));
-                    let color = resolve_tag_color(tid, tags);
-                    painter.rect_filled(seg_rect, Rounding::ZERO, color);
-                    bstart = next_x;
+                let mut cur_x = 1.0;
+                for (&tag_id, &tag_sec) in &day.tag_breakdown {
+                    if tag_sec <= 0 {
+                        continue;
+                    }
+                    let seg_w = (day_bar_w * (tag_sec as f32 / day.total_seconds as f32)).max(1.0);
+                    let color = resolve_tag_color(tag_id, self.tags);
+                    let rect = Path::rectangle(Point::new(cur_x, y), Size::new(seg_w, bar_h.max(1.0) - 0.5));
+                    frame.fill(&rect, color);
+                    cur_x += seg_w;
                 }
             }
         }
 
-        // 4. Mouse hover hit-testing (1:1 with PT WM_MOUSEMOVE IDC_STATICHO)
-        if let Some(pos) = response.hover_pos() {
-            if inner_rect.contains(pos) {
-                let hover_y = pos.y - inner_rect.top();
-                let day_idx = (hover_y / bar_h) as usize;
-                if day_idx < active_days.len() {
-                    let day = &active_days[day_idx];
-                    let time_str = format_pt_time(day.total_seconds);
-                    *hover_status = Some(format!(
-                        "{}-{}-{} -> {}",
-                        day.date.year(),
-                        day.date.month(),
-                        day.date.day(),
-                        time_str
-                    ));
+        vec![frame.into_geometry()]
+    }
+
+    fn update(
+        &self,
+        last_hovered: &mut Self::State,
+        event: &iced::Event,
+        bounds: Rectangle,
+        cursor: mouse::Cursor,
+    ) -> Option<canvas::Action<Message>> {
+        match event {
+            iced::Event::Mouse(mouse::Event::CursorMoved { .. }) => {
+                let new_idx = if let Some(pos) = cursor.position_in(bounds) {
+                    let num_days = self.active_days.len();
+                    if num_days == 0 {
+                        None
+                    } else {
+                        let inner_h = (bounds.height - 2.0).max(1.0);
+                        let mut bar_h = (inner_h / num_days as f32).floor();
+                        if bar_h < 1.0 {
+                            bar_h = 1.0;
+                        }
+                        if bar_h > 20.0 {
+                            bar_h = 20.0;
+                        }
+
+                        let rel_y = pos.y - 1.0;
+                        if rel_y >= 0.0 {
+                            let idx = (rel_y / bar_h).floor() as usize;
+                            if idx < self.active_days.len() {
+                                Some(idx)
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        }
+                    }
+                } else {
+                    None
+                };
+
+                // Deduplicate: only fire if hovered day changed
+                if *last_hovered != new_idx {
+                    *last_hovered = new_idx;
+                    let msg = new_idx.map(|idx| {
+                        let day = &self.active_days[idx];
+                        format!(
+                            "{} -> {}",
+                            day.date.format("%Y-%m-%d"),
+                            format_pt_time(day.total_seconds)
+                        )
+                    });
+                    return Some(canvas::Action::publish((self.on_hover)(msg)));
                 }
+                None
             }
+            _ => None,
         }
     }
 }

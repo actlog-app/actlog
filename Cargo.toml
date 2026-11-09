@@ -22,8 +22,7 @@ regex = "1.10"
 tiny_http = "0.12"
 
 # Desktop UI
-eframe = { version = "0.29", default-features = false, features = ["default_fonts", "glow"] }
-egui = "0.29"
+iced = { version = "0.14.0", features = ["canvas", "tokio"] }
 
 # Windows API
 [target.'cfg(windows)'.dependencies]
