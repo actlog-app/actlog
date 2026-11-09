@@ -197,7 +197,26 @@ impl Repository {
     }
 
     pub fn get_all_tags(conn: &Connection) -> Result<Vec<Tag>> {
-        let mut stmt = conn.prepare("SELECT id, name, color, productivity_score FROM tags ORDER BY id ASC")?;
+        let mut stmt = conn.prepare(
+            "SELECT id, name, color, productivity_score FROM tags 
+             ORDER BY CASE name 
+                 WHEN 'UNTAGGED' THEN 0 
+                 WHEN 'work' THEN 1 
+                 WHEN 'games' THEN 2 
+                 WHEN 'surfing' THEN 3 
+                 WHEN 'entertainment' THEN 4 
+                 WHEN 'communication' THEN 5 
+                 WHEN 'organization' THEN 6 
+                 WHEN 'project 1' THEN 7 
+                 WHEN 'project 2' THEN 8 
+                 WHEN 'project 3' THEN 9 
+                 WHEN 'project 4' THEN 10 
+                 WHEN 'project 5' THEN 11 
+                 WHEN 'project 6' THEN 12 
+                 WHEN 'project 7' THEN 13 
+                 WHEN 'project 8' THEN 14 
+                 ELSE 99 END, id ASC",
+        )?;
         let rows = stmt.query_map([], |r| {
             Ok(Tag {
                 id: Some(r.get(0)?),

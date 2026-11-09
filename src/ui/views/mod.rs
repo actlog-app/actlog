@@ -1,4 +1,2 @@
-pub mod explorer;
-pub mod header;
-pub mod metrics;
-pub mod ribbon;
+pub mod day_graph;
+pub mod statistics;

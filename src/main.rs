@@ -28,11 +28,24 @@ fn resolve_db_path() -> String {
 }
 
 fn main() -> eframe::Result {
+    #[cfg(windows)]
+    unsafe {
+        use windows::Win32::UI::HiDpi::*;
+        let _ = SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+    }
+
     let args: Vec<String> = std::env::args().collect();
     for arg in &args[1..] {
         if arg == "-v" || arg == "--version" {
             println!("ActLog v{}", env!("CARGO_PKG_VERSION"));
             return Ok(());
+        }
+    }
+
+    let mut screenshot_path = None;
+    for i in 1..args.len() {
+        if args[i] == "--screenshot" && i + 1 < args.len() {
+            screenshot_path = Some(args[i + 1].clone());
         }
     }
 
@@ -59,9 +72,9 @@ fn main() -> eframe::Result {
     // 5. Mount Desktop Window UI (Modern Focus Dashboard)
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([1040.0, 720.0])
-            .with_min_inner_size([750.0, 500.0])
-            .with_title("ActLog - Focus & Activity Dashboard"),
+            .with_inner_size([1024.0, 560.0])
+            .with_min_inner_size([750.0, 450.0])
+            .with_title("PT Statistics View"),
         ..Default::default()
     };
 
@@ -71,7 +84,7 @@ fn main() -> eframe::Result {
         native_options,
         Box::new(move |_cc| {
             println!("eframe app setup callback running!");
-            Ok(Box::new(ActLogApp::new(state, db_path)))
+            Ok(Box::new(ActLogApp::new(state, db_path, screenshot_path)))
         }),
     );
     println!("eframe::run_native returned: {:?}", res);
